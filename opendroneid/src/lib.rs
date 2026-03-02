@@ -1,17 +1,34 @@
+use bytes::{Buf, BufMut};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use opendroneid_sys::{self as sys};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum Error {
-    #[error("System error")]
-    Sys,
-    #[error("Invalid length: remaining {remaining}, expected {expected}")]
-    InvalidLengthRemaining { remaining: usize, expected: usize },
-    #[error("Encode Error")]
-    EncodeError,
-    #[error("Decode Error")]
-    DecodeError,
+mod macros;
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EncodeError {
+    #[error("Can't encode {0} to wire format")]
+    Unknown(String),
+    #[error("Encode buffer too small for {message}: remaining {remaining}, required {required}")]
+    BufferTooSmall {
+        message: String,
+        remaining: usize,
+        required: usize,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum DecodeError {
+    #[error("Can't decode {0} from wire format")]
+    Unknown(String),
+    #[error(
+        "Decode buffer too small for {message}: remaining {remaining}, expected at least {expected}"
+    )]
+    BufferTooSmall {
+        message: String,
+        remaining: usize,
+        expected: usize,
+    },
     #[error("Enum mapping error: {0} has invalid value {1}")]
     EnumMappingError(&'static str, u32),
 }
@@ -215,33 +232,75 @@ pub enum ClassEu {
     Class6 = sys::ODID_class_EU_ODID_CLASS_EU_CLASS_6,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct BasicIdMessage {
-    ua_type: UAType,
-    id_type: IDType,
-    uas_id: [i8; 21],
+/// Common trait for all Open Drone ID messages, providing encoding and decoding functionality.
+pub trait Message: Sized {
+    type Data;
+    type Encoded;
+
+    /// Returns the length of the encoded message in bytes.
+    fn encoded_len() -> usize;
+    /// Encodes the message to a buffer.
+    ///
+    /// An error will be returned if the buffer does not have sufficient capacity.
+    fn encode(&self, buf: &mut impl BufMut) -> Result<(), EncodeError>;
+    /// Encodes the message to a newly allocated buffer.
+    fn encode_to_vec(&self) -> Result<Vec<u8>, EncodeError>;
+    /// Decodes the message from a buffer.
+    fn decode(buf: impl Buf) -> Result<Self, DecodeError>;
 }
 
-impl TryFrom<sys::ODID_BasicID_data> for BasicIdMessage {
-    type Error = Error;
+/// Internal trait for encoding and decoding messages using the underlying C library functions.
+trait MessageInternal: Sized {
+    type Data;
+    type Encoded;
 
-    fn try_from(value: sys::ODID_BasicID_data) -> Result<Self, Self::Error> {
-        Ok(Self {
-            ua_type: UAType::from_u32(value.UAType)
-                .ok_or(Error::EnumMappingError("UAType", value.UAType))?,
-            id_type: IDType::from_u32(value.IDType)
-                .ok_or(Error::EnumMappingError("IDType", value.IDType))?,
-            uas_id: value.UASID,
-        })
+    /// Initializes the message data structure to default values.
+    fn init_data(data: *mut Self::Data);
+    /// Encodes the message data to the encoded format using the underlying C library function.
+    fn encode_message(
+        out_encoded: *mut Self::Encoded,
+        in_data: *const Self::Data,
+    ) -> Result<(), EncodeError>;
+    /// Decodes the message data from the encoded format using the underlying C library function.
+    fn decode_message(
+        out_data: *mut Self::Data,
+        in_encoded: *const Self::Encoded,
+    ) -> Result<(), DecodeError>;
+}
+
+impl_message!(
+    BasicId,
+    sys::ODID_BasicID_data,
+    sys::ODID_BasicID_encoded,
+    sys::odid_initBasicIDData,
+    sys::encodeBasicIDMessage,
+    sys::decodeBasicIDMessage
+);
+
+impl BasicId {
+    pub fn ua_type(&self) -> Result<UAType, DecodeError> {
+        UAType::from_u32(self.data.UAType)
+            .ok_or(DecodeError::EnumMappingError("UAType", self.data.UAType))
     }
-}
 
-impl From<BasicIdMessage> for sys::ODID_BasicID_data {
-    fn from(value: BasicIdMessage) -> Self {
-        Self {
-            UAType: value.ua_type as u32,
-            IDType: value.id_type as u32,
-            UASID: value.uas_id,
-        }
+    pub fn with_ua_type(&mut self, ua_type: UAType) {
+        self.data.UAType = ua_type as u32;
+    }
+
+    pub fn id_type(&self) -> Result<IDType, DecodeError> {
+        IDType::from_u32(self.data.IDType)
+            .ok_or(DecodeError::EnumMappingError("IDType", self.data.IDType))
+    }
+
+    pub fn with_id_type(&mut self, id_type: IDType) {
+        self.data.IDType = id_type as u32;
+    }
+
+    pub fn uas_id(&self) -> &[i8; 21] {
+        &self.data.UASID
+    }
+
+    pub fn with_uas_id(&mut self, uas_id: [i8; 21]) {
+        self.data.UASID = uas_id;
     }
 }
