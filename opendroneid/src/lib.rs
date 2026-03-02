@@ -29,7 +29,7 @@ pub enum MessageType {
     Invalid = sys::ODID_messagetype_ODID_MESSAGETYPE_INVALID,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum IDType {
     #[default]
@@ -40,7 +40,7 @@ pub enum IDType {
     SpecificSessionId = sys::ODID_idtype_ODID_IDTYPE_SPECIFIC_SESSION_ID,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum UAType {
     #[default]
@@ -62,7 +62,7 @@ pub enum UAType {
     Other = sys::ODID_uatype_ODID_UATYPE_OTHER,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum Status {
     #[default]
@@ -73,7 +73,7 @@ pub enum Status {
     RemoteIdSystemFailure = sys::ODID_status_ODID_STATUS_REMOTE_ID_SYSTEM_FAILURE,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum HeightReference {
     #[default]
@@ -81,7 +81,7 @@ pub enum HeightReference {
     Ground = sys::ODID_Height_reference_ODID_HEIGHT_REF_OVER_GROUND,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum HorizontalAccuracy {
     #[default]
@@ -100,7 +100,7 @@ pub enum HorizontalAccuracy {
     LessThan1Meter = sys::ODID_Horizontal_accuracy_ODID_HOR_ACC_1_METER,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum VerticalAccuracy {
     #[default]
@@ -113,7 +113,7 @@ pub enum VerticalAccuracy {
     LessThan1Meter = sys::ODID_Vertical_accuracy_ODID_VER_ACC_1_METER,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum SpeedAccuracy {
     #[default]
@@ -124,7 +124,7 @@ pub enum SpeedAccuracy {
     LessThan0_3MetersPerSecond = sys::ODID_Speed_accuracy_ODID_SPEED_ACC_0_3_METERS_PER_SECOND,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum TimestampAccuracy {
     #[default]
@@ -146,7 +146,7 @@ pub enum TimestampAccuracy {
     LessThan1_5Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_1_5_SECOND,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum AuthenticationType {
     #[default]
@@ -158,7 +158,7 @@ pub enum AuthenticationType {
     SpecificAuthentication = sys::ODID_authtype_ODID_AUTH_SPECIFIC_AUTHENTICATION,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum DescriptionType {
     #[default]
@@ -167,14 +167,14 @@ pub enum DescriptionType {
     ExtendedStatus = sys::ODID_desctype_ODID_DESC_TYPE_EXTENDED_STATUS,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum OperatorIdType {
     #[default]
     OperatorID = sys::ODID_operatorIdType_ODID_OPERATOR_ID,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum OperatorLocationType {
     #[default]
@@ -183,7 +183,7 @@ pub enum OperatorLocationType {
     Fixed = sys::ODID_operator_location_type_ODID_OPERATOR_LOCATION_TYPE_FIXED,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum ClassificationType {
     #[default]
@@ -191,7 +191,7 @@ pub enum ClassificationType {
     EU = sys::ODID_classification_type_ODID_CLASSIFICATION_TYPE_EU,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum Category {
     #[default]
@@ -201,7 +201,7 @@ pub enum Category {
     Certified = sys::ODID_category_EU_ODID_CATEGORY_EU_CERTIFIED,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum ClassEu {
     #[default]
