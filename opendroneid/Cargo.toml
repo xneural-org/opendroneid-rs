@@ -8,3 +8,7 @@ repository = "https://github.com/xneural-org/opendroneid-rs"
 
 [dependencies]
 opendroneid-sys = { path = "../opendroneid-sys", default-features = false }
+bytes = { version = "1", default-features = false }
+thiserror = "1"
+num-traits = "0.2.19"
+num-derive = "0.4.2"
