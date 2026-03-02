@@ -15,6 +15,8 @@ pub enum EncodeError {
         remaining: usize,
         required: usize,
     },
+    #[error("Invalid value for {0}: {1}")]
+    InvalidValue(&'static str, String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -31,6 +33,8 @@ pub enum DecodeError {
     },
     #[error("Enum mapping error: {0} has invalid value {1}")]
     EnumMappingError(&'static str, u32),
+    #[error("Invalid value for {0}: {1}")]
+    InvalidValue(&'static str, String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
@@ -307,4 +311,281 @@ impl BasicId {
     pub fn with_uas_id(&mut self, uas_id: [i8; 21]) {
         self.data.UASID = uas_id;
     }
+}
+
+impl_message!(
+    Location,
+    sys::ODID_Location_data,
+    sys::ODID_Location_encoded,
+    sys::odid_initLocationData,
+    sys::encodeLocationMessage,
+    sys::decodeLocationMessage
+);
+
+impl Location {
+    pub fn status(&self) -> Result<Status, DecodeError> {
+        Status::from_u32(self.data.Status)
+            .ok_or(DecodeError::EnumMappingError("Status", self.data.Status))
+    }
+
+    pub fn with_status(&mut self, status: Status) {
+        self.data.Status = status as u32;
+    }
+
+    pub fn direction(&self) -> f32 {
+        self.data.Direction
+    }
+
+    pub fn with_direction(&mut self, direction: f32) -> Result<(), EncodeError> {
+        if direction < sys::MIN_DIR as f32 || direction > sys::MAX_DIR as f32 {
+            return Err(EncodeError::InvalidValue(
+                "direction",
+                direction.to_string(),
+            ));
+        }
+        self.data.Direction = direction;
+        Ok(())
+    }
+
+    pub fn speed_horizontal(&self) -> f32 {
+        self.data.SpeedHorizontal
+    }
+
+    pub fn with_speed_horizontal(&mut self, speed: f32) -> Result<(), EncodeError> {
+        if speed < sys::MIN_SPEED_H as f32 || speed > sys::MAX_SPEED_H as f32 {
+            return Err(EncodeError::InvalidValue(
+                "speed_horizontal",
+                speed.to_string(),
+            ));
+        }
+        self.data.SpeedHorizontal = speed;
+        Ok(())
+    }
+
+    pub fn speed_vertical(&self) -> f32 {
+        self.data.SpeedVertical
+    }
+
+    pub fn with_speed_vertical(&mut self, speed: f32) -> Result<(), EncodeError> {
+        if speed < sys::MIN_SPEED_V as f32 || speed > sys::MAX_SPEED_V as f32 {
+            return Err(EncodeError::InvalidValue(
+                "speed_vertical",
+                speed.to_string(),
+            ));
+        }
+        self.data.SpeedVertical = speed;
+        Ok(())
+    }
+
+    pub fn latitude(&self) -> f64 {
+        self.data.Latitude
+    }
+
+    pub fn with_latitude(&mut self, latitude: f64) -> Result<(), EncodeError> {
+        if latitude < sys::MIN_LAT as f64 || latitude > sys::MAX_LAT as f64 {
+            return Err(EncodeError::InvalidValue("latitude", latitude.to_string()));
+        }
+        self.data.Latitude = latitude;
+        Ok(())
+    }
+
+    pub fn longitude(&self) -> f64 {
+        self.data.Longitude
+    }
+    pub fn with_longitude(&mut self, longitude: f64) -> Result<(), EncodeError> {
+        if longitude < sys::MIN_LON as f64 || longitude > sys::MAX_LON as f64 {
+            return Err(EncodeError::InvalidValue(
+                "longitude",
+                longitude.to_string(),
+            ));
+        }
+        self.data.Longitude = longitude;
+        Ok(())
+    }
+    pub fn altitude_barometric(&self) -> f32 {
+        self.data.AltitudeBaro
+    }
+    pub fn with_altitude_barometric(&mut self, altitude: f32) -> Result<(), EncodeError> {
+        if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
+            return Err(EncodeError::InvalidValue(
+                "altitude_barometric",
+                altitude.to_string(),
+            ));
+        }
+        self.data.AltitudeBaro = altitude;
+        Ok(())
+    }
+    pub fn altitude_geodetic(&self) -> f32 {
+        self.data.AltitudeGeo
+    }
+
+    pub fn with_altitude_geodetic(&mut self, altitude: f32) -> Result<(), EncodeError> {
+        if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
+            return Err(EncodeError::InvalidValue(
+                "altitude_geodetic",
+                altitude.to_string(),
+            ));
+        }
+        self.data.AltitudeGeo = altitude;
+        Ok(())
+    }
+
+    pub fn height_type(&self) -> Result<HeightReference, DecodeError> {
+        HeightReference::from_u32(self.data.HeightType).ok_or(DecodeError::EnumMappingError(
+            "HeightType",
+            self.data.HeightType,
+        ))
+    }
+    pub fn with_height_type(&mut self, height_type: HeightReference) {
+        self.data.HeightType = height_type as u32;
+    }
+
+    pub fn height(&self) -> f32 {
+        self.data.Height
+    }
+    pub fn with_height(&mut self, height: f32) -> Result<(), EncodeError> {
+        if height < sys::MIN_ALT as f32 || height > sys::MAX_ALT as f32 {
+            return Err(EncodeError::InvalidValue("height", height.to_string()));
+        }
+        self.data.Height = height;
+        Ok(())
+    }
+
+    pub fn horizontal_accuracy(&self) -> Result<HorizontalAccuracy, DecodeError> {
+        HorizontalAccuracy::from_u32(self.data.HorizAccuracy).ok_or(DecodeError::EnumMappingError(
+            "HorizontalAccuracy",
+            self.data.HorizAccuracy,
+        ))
+    }
+
+    pub fn with_horizontal_accuracy(&mut self, accuracy: HorizontalAccuracy) {
+        self.data.HorizAccuracy = accuracy as u32;
+    }
+
+    pub fn vertical_accuracy(&self) -> Result<VerticalAccuracy, DecodeError> {
+        VerticalAccuracy::from_u32(self.data.VertAccuracy).ok_or(DecodeError::EnumMappingError(
+            "VerticalAccuracy",
+            self.data.VertAccuracy,
+        ))
+    }
+
+    pub fn with_vertical_accuracy(&mut self, accuracy: VerticalAccuracy) {
+        self.data.VertAccuracy = accuracy as u32;
+    }
+
+    pub fn barometric_accuracy(&self) -> Result<VerticalAccuracy, DecodeError> {
+        VerticalAccuracy::from_u32(self.data.BaroAccuracy).ok_or(DecodeError::EnumMappingError(
+            "BarometricAccuracy",
+            self.data.BaroAccuracy,
+        ))
+    }
+
+    pub fn with_barometric_accuracy(&mut self, accuracy: VerticalAccuracy) {
+        self.data.BaroAccuracy = accuracy as u32;
+    }
+
+    pub fn speed_accuracy(&self) -> Result<SpeedAccuracy, DecodeError> {
+        SpeedAccuracy::from_u32(self.data.SpeedAccuracy).ok_or(DecodeError::EnumMappingError(
+            "SpeedAccuracy",
+            self.data.SpeedAccuracy,
+        ))
+    }
+    pub fn with_speed_accuracy(&mut self, accuracy: SpeedAccuracy) {
+        self.data.SpeedAccuracy = accuracy as u32;
+    }
+    pub fn timestamp_accuracy(&self) -> Result<TimestampAccuracy, DecodeError> {
+        TimestampAccuracy::from_u32(self.data.TSAccuracy).ok_or(DecodeError::EnumMappingError(
+            "TimestampAccuracy",
+            self.data.TSAccuracy,
+        ))
+    }
+    pub fn with_timestamp_accuracy(&mut self, accuracy: TimestampAccuracy) {
+        self.data.TSAccuracy = accuracy as u32;
+    }
+
+    /// Returns the timestamp as a floating point number of seconds since the start of the hour
+    pub fn timestamp(&self) -> f32 {
+        self.data.TimeStamp
+    }
+
+    /// Set the timestamp as a floating point number of seconds since the start of the hour
+    pub fn with_timestamp(&mut self, timestamp: f32) -> Result<(), EncodeError> {
+        if timestamp < 0 as f32 || timestamp > sys::MAX_TIMESTAMP as f32 {
+            return Err(EncodeError::InvalidValue(
+                "timestamp",
+                timestamp.to_string(),
+            ));
+        }
+        self.data.TimeStamp = timestamp;
+        Ok(())
+    }
+
+    #[cfg(feature = "chrono")]
+    pub fn chrono_timestamp(&self) -> Result<chrono::DateTime<chrono::Utc>, DecodeError> {
+        decode_timestamp(self.data.TimeStamp)
+    }
+
+    #[cfg(feature = "chrono")]
+    pub fn with_chrono_timestamp(&mut self, timestamp: chrono::DateTime<chrono::Utc>) {
+        self.data.TimeStamp = encode_timestamp(timestamp);
+    }
+}
+
+#[cfg(feature = "chrono")]
+fn decode_timestamp(value: f32) -> Result<chrono::DateTime<chrono::Utc>, DecodeError> {
+    use chrono::Timelike;
+    let now = chrono::Utc::now();
+
+    let this_hour_start = now
+        .with_minute(0)
+        .ok_or(DecodeError::InvalidValue(
+            "timestamp.minute",
+            "0".to_string(),
+        ))?
+        .with_second(0)
+        .ok_or(DecodeError::InvalidValue(
+            "timestamp.second",
+            "0".to_string(),
+        ))?
+        .with_nanosecond(0)
+        .ok_or(DecodeError::InvalidValue(
+            "timestamp.nanosecond",
+            "0".to_string(),
+        ))?;
+    let mins = now.minute();
+    let secs = now.second();
+    let nanos = now.nanosecond();
+    let now_secs = (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0);
+
+    let base_hour = if value > now_secs {
+        this_hour_start - chrono::Duration::hours(1)
+    } else {
+        this_hour_start
+    };
+
+    base_hour
+        .with_minute((value / 60.0) as u32)
+        .ok_or(DecodeError::InvalidValue(
+            "timestamp.minute",
+            value.to_string(),
+        ))?
+        .with_second((value % 60.0) as u32)
+        .ok_or(DecodeError::InvalidValue(
+            "timestamp.second",
+            value.to_string(),
+        ))?
+        .with_nanosecond(((value % 1.0) * 1_000_000_000.0) as u32)
+        .ok_or(DecodeError::InvalidValue(
+            "timestamp.nanosecond",
+            value.to_string(),
+        ))
+}
+
+#[cfg(feature = "chrono")]
+fn encode_timestamp(value: chrono::DateTime<chrono::Utc>) -> f32 {
+    use chrono::Timelike;
+    let mins = value.minute();
+    let secs = value.second();
+    let nanos = value.nanosecond();
+    (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0)
 }
