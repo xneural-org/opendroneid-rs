@@ -1,11 +1,8 @@
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use std::{env, path};
 
-fn resolve_core_c_root(manifest_dir: &Path) -> PathBuf {
+fn resolve_core_c_root(manifest_dir: &path::Path) -> path::PathBuf {
     if let Some(path) = env::var_os("OPENDRONEID_CORE_C_DIR") {
-        let root = PathBuf::from(path);
+        let root = path::PathBuf::from(path);
         if root.join("libopendroneid/opendroneid.h").exists() {
             return root;
         }
@@ -28,7 +25,7 @@ fn resolve_core_c_root(manifest_dir: &Path) -> PathBuf {
 
 fn main() {
     let manifest_dir =
-        PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set"));
+        path::PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set"));
     let core_c_root = resolve_core_c_root(&manifest_dir);
     let lib_dir = core_c_root.join("libopendroneid");
 
@@ -97,7 +94,7 @@ fn main() {
         .generate()
         .expect("Failed to generate libopendroneid bindings");
 
-    let out_path = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is not set"));
+    let out_path = path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is not set"));
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Failed to write generated bindings");
