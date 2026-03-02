@@ -75,7 +75,7 @@ fn main() {
     }
 
     let bindings = bindgen::Builder::default()
-        .header_contents("opendroneid_wrapper.h", "#include <opendroneid.h>\n")
+        .header_contents("opendroneid-wrapper.h", "#include <opendroneid.h>\n")
         .clang_arg(format!("-I{}", lib_dir.display()))
         .allowlist_type("ODID_.*")
         .allowlist_type("FRDID_.*")
