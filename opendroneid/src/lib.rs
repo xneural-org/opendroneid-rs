@@ -332,8 +332,12 @@ impl Location {
         self.data.Status = status as u32;
     }
 
-    pub fn direction(&self) -> f32 {
-        self.data.Direction
+    pub fn direction(&self) -> Option<f32> {
+        if self.data.Direction == sys::INV_DIR as f32 {
+            None
+        } else {
+            Some(self.data.Direction)
+        }
     }
 
     pub fn with_direction(&mut self, direction: f32) -> Result<(), EncodeError> {
@@ -347,8 +351,12 @@ impl Location {
         Ok(())
     }
 
-    pub fn speed_horizontal(&self) -> f32 {
-        self.data.SpeedHorizontal
+    pub fn speed_horizontal(&self) -> Option<f32> {
+        if self.data.SpeedHorizontal == sys::INV_SPEED_H as f32 {
+            None
+        } else {
+            Some(self.data.SpeedHorizontal)
+        }
     }
 
     pub fn with_speed_horizontal(&mut self, speed: f32) -> Result<(), EncodeError> {
@@ -362,8 +370,12 @@ impl Location {
         Ok(())
     }
 
-    pub fn speed_vertical(&self) -> f32 {
-        self.data.SpeedVertical
+    pub fn speed_vertical(&self) -> Option<f32> {
+        if self.data.SpeedVertical == sys::INV_SPEED_V as f32 {
+            None
+        } else {
+            Some(self.data.SpeedVertical)
+        }
     }
 
     pub fn with_speed_vertical(&mut self, speed: f32) -> Result<(), EncodeError> {
@@ -402,8 +414,12 @@ impl Location {
         self.data.Longitude = longitude;
         Ok(())
     }
-    pub fn altitude_barometric(&self) -> f32 {
-        self.data.AltitudeBaro
+    pub fn altitude_barometric(&self) -> Option<f32> {
+        if self.data.AltitudeBaro == sys::INV_ALT as f32 {
+            None
+        } else {
+            Some(self.data.AltitudeBaro)
+        }
     }
     pub fn with_altitude_barometric(&mut self, altitude: f32) -> Result<(), EncodeError> {
         if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
@@ -415,8 +431,12 @@ impl Location {
         self.data.AltitudeBaro = altitude;
         Ok(())
     }
-    pub fn altitude_geodetic(&self) -> f32 {
-        self.data.AltitudeGeo
+    pub fn altitude_geodetic(&self) -> Option<f32> {
+        if self.data.AltitudeGeo == sys::INV_ALT as f32 {
+            None
+        } else {
+            Some(self.data.AltitudeGeo)
+        }
     }
 
     pub fn with_altitude_geodetic(&mut self, altitude: f32) -> Result<(), EncodeError> {
@@ -440,8 +460,12 @@ impl Location {
         self.data.HeightType = height_type as u32;
     }
 
-    pub fn height(&self) -> f32 {
-        self.data.Height
+    pub fn height(&self) -> Option<f32> {
+        if self.data.Height == sys::INV_ALT as f32 {
+            None
+        } else {
+            Some(self.data.Height)
+        }
     }
     pub fn with_height(&mut self, height: f32) -> Result<(), EncodeError> {
         if height < sys::MIN_ALT as f32 || height > sys::MAX_ALT as f32 {
@@ -504,8 +528,12 @@ impl Location {
     }
 
     /// Returns the timestamp as a floating point number of seconds since the start of the hour
-    pub fn timestamp(&self) -> f32 {
-        self.data.TimeStamp
+    pub fn timestamp(&self) -> Option<f32> {
+        if self.data.TimeStamp == sys::INV_TIMESTAMP as f32 {
+            None
+        } else {
+            Some(self.data.TimeStamp)
+        }
     }
 
     /// Set the timestamp as a floating point number of seconds since the start of the hour
@@ -521,8 +549,12 @@ impl Location {
     }
 
     #[cfg(feature = "chrono")]
-    pub fn chrono_timestamp(&self) -> Result<chrono::DateTime<chrono::Utc>, DecodeError> {
-        decode_timestamp(self.data.TimeStamp)
+    pub fn chrono_timestamp(&self) -> Option<Result<chrono::DateTime<chrono::Utc>, DecodeError>> {
+        if self.data.TimeStamp == sys::INV_TIMESTAMP as f32 {
+            None
+        } else {
+            Some(decode_timestamp(self.data.TimeStamp))
+        }
     }
 
     #[cfg(feature = "chrono")]
