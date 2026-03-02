@@ -13,16 +13,6 @@ macro_rules! impl_message {
             data: $data_ty,
         }
 
-        impl $message_ty {
-            pub fn new() -> Self {
-                let mut data = std::mem::MaybeUninit::<$data_ty>::uninit();
-                <Self as MessageInternal>::init_data(data.as_mut_ptr());
-                Self {
-                    data: unsafe { data.assume_init() },
-                }
-            }
-        }
-
         impl MessageInternal for $message_ty {
             type Data = $data_ty;
             type Encoded = $encoded_ty;
@@ -55,6 +45,10 @@ macro_rules! impl_message {
         impl Message for $message_ty {
             type Data = $data_ty;
             type Encoded = $encoded_ty;
+
+            fn new() -> Self {
+                Self::default()
+            }
 
             #[inline]
             fn encoded_len() -> usize {
@@ -119,8 +113,12 @@ macro_rules! impl_message {
         }
 
         impl Default for $message_ty {
+            /// Creates a new message with default values.
             fn default() -> Self {
-                Self::new()
+                let mut data = ::std::mem::MaybeUninit::<$data_ty>::uninit();
+                <Self as MessageInternal>::init_data(data.as_mut_ptr());
+                let data = unsafe { data.assume_init() };
+                Self { data }
             }
         }
     };

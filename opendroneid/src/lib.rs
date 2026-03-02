@@ -237,6 +237,10 @@ pub trait Message: Sized {
     type Data;
     type Encoded;
 
+    /// Creates a new message with default values.
+    /// The values are the default values defined by the underlying C library,
+    /// which may not be valid.
+    fn new() -> Self;
     /// Returns the length of the encoded message in bytes.
     fn encoded_len() -> usize;
     /// Encodes the message to a buffer.
