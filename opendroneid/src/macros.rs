@@ -8,7 +8,7 @@ macro_rules! impl_message {
         $encode:path,
         $decode:path
     ) => {
-        #[derive(Clone)]
+        #[derive(Clone, PartialEq, Debug)]
         pub struct $message_ty {
             data: $data_ty,
         }

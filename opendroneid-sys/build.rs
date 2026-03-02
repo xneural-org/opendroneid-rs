@@ -75,23 +75,24 @@ fn main() {
     }
 
     let bindings = bindgen::Builder::default()
-        .header_contents("opendroneid-wrapper.h", "#include <opendroneid.h>\n")
+        .header_contents(
+            "opendroneid-wrapper.h",
+            "
+            #define ODID_DISABLE_PRINTF 1
+            #include <opendroneid.h>\n",
+        )
         .clang_arg(format!("-I{}", lib_dir.display()))
         .allowlist_type("ODID_.*")
-        .allowlist_type("FRDID_.*")
         .allowlist_function("odid_.*")
-        .allowlist_function("encode.*")
-        .allowlist_function("decode.*")
-        .allowlist_function("get.*")
-        .allowlist_function("createEnum.*")
-        .allowlist_function("drone_export_gps_data")
-        .allowlist_function("frdid_.*")
+        .allowlist_function("encode.*Message")
+        .allowlist_function("decode.*Message")
         .allowlist_var("MIN_.*")
         .allowlist_var("MAX_.*")
         .allowlist_var("INV_.*")
         .allowlist_var("ODID_.*")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .derive_default(true)
+        .derive_debug(true)
+        .derive_partialeq(true)
         .generate_comments(true)
         .layout_tests(false)
         .generate()
