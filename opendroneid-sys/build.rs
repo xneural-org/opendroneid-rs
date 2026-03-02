@@ -80,8 +80,6 @@ fn main() {
     let bindings = bindgen::Builder::default()
         .header_contents("opendroneid_wrapper.h", "#include <opendroneid.h>\n")
         .clang_arg(format!("-I{}", lib_dir.display()))
-        .rustified_enum("ODID_.*")
-        .rustified_enum("FRDID_.*")
         .allowlist_type("ODID_.*")
         .allowlist_type("FRDID_.*")
         .allowlist_function("odid_.*")
