@@ -56,8 +56,8 @@ pub enum IdType {
     #[default]
     None = sys::ODID_idtype_ODID_IDTYPE_NONE,
     SerialNumber = sys::ODID_idtype_ODID_IDTYPE_SERIAL_NUMBER,
-    CAARegistrationId = sys::ODID_idtype_ODID_IDTYPE_CAA_REGISTRATION_ID,
-    UTMAssignedUuid = sys::ODID_idtype_ODID_IDTYPE_UTM_ASSIGNED_UUID,
+    CaaRegistrationId = sys::ODID_idtype_ODID_IDTYPE_CAA_REGISTRATION_ID,
+    UtmAssignedUuid = sys::ODID_idtype_ODID_IDTYPE_UTM_ASSIGNED_UUID,
     SpecificSessionId = sys::ODID_idtype_ODID_IDTYPE_SPECIFIC_SESSION_ID,
 }
 
@@ -192,7 +192,7 @@ pub enum DescriptionType {
 #[repr(u32)]
 pub enum OperatorIdType {
     #[default]
-    OperatorID = sys::ODID_operatorIdType_ODID_OPERATOR_ID,
+    OperatorId = sys::ODID_operatorIdType_ODID_OPERATOR_ID,
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
@@ -209,7 +209,7 @@ pub enum OperatorLocationType {
 pub enum ClassificationType {
     #[default]
     Undeclared = sys::ODID_classification_type_ODID_CLASSIFICATION_TYPE_UNDECLARED,
-    EU = sys::ODID_classification_type_ODID_CLASSIFICATION_TYPE_EU,
+    EuropeanUnion = sys::ODID_classification_type_ODID_CLASSIFICATION_TYPE_EU,
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
