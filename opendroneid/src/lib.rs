@@ -1,4 +1,5 @@
 use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use opendroneid_sys::{self as sys};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -212,4 +213,35 @@ pub enum ClassEu {
     Class4 = sys::ODID_class_EU_ODID_CLASS_EU_CLASS_4,
     Class5 = sys::ODID_class_EU_ODID_CLASS_EU_CLASS_5,
     Class6 = sys::ODID_class_EU_ODID_CLASS_EU_CLASS_6,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct BasicIdMessage {
+    ua_type: UAType,
+    id_type: IDType,
+    uas_id: [i8; 21],
+}
+
+impl TryFrom<sys::ODID_BasicID_data> for BasicIdMessage {
+    type Error = Error;
+
+    fn try_from(value: sys::ODID_BasicID_data) -> Result<Self, Self::Error> {
+        Ok(Self {
+            ua_type: UAType::from_u32(value.UAType)
+                .ok_or(Error::EnumMappingError("UAType", value.UAType))?,
+            id_type: IDType::from_u32(value.IDType)
+                .ok_or(Error::EnumMappingError("IDType", value.IDType))?,
+            uas_id: value.UASID,
+        })
+    }
+}
+
+impl From<BasicIdMessage> for sys::ODID_BasicID_data {
+    fn from(value: BasicIdMessage) -> Self {
+        Self {
+            UAType: value.ua_type as u32,
+            IDType: value.id_type as u32,
+            UASID: value.uas_id,
+        }
+    }
 }
