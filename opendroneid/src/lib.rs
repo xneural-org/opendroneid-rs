@@ -52,7 +52,7 @@ pub enum MessageType {
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
-pub enum IDType {
+pub enum IdType {
     #[default]
     None = sys::ODID_idtype_ODID_IDTYPE_NONE,
     SerialNumber = sys::ODID_idtype_ODID_IDTYPE_SERIAL_NUMBER,
@@ -63,7 +63,7 @@ pub enum IDType {
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
-pub enum UAType {
+pub enum UaType {
     #[default]
     None = sys::ODID_uatype_ODID_UATYPE_NONE,
     Aeroplane = sys::ODID_uatype_ODID_UATYPE_AEROPLANE,
@@ -286,21 +286,21 @@ impl_message!(
 );
 
 impl BasicId {
-    pub fn ua_type(&self) -> Result<UAType, DecodeError> {
-        UAType::from_u32(self.data.UAType)
+    pub fn ua_type(&self) -> Result<UaType, DecodeError> {
+        UaType::from_u32(self.data.UAType)
             .ok_or(DecodeError::EnumMappingError("UAType", self.data.UAType))
     }
 
-    pub fn with_ua_type(&mut self, ua_type: UAType) {
+    pub fn with_ua_type(&mut self, ua_type: UaType) {
         self.data.UAType = ua_type as u32;
     }
 
-    pub fn id_type(&self) -> Result<IDType, DecodeError> {
-        IDType::from_u32(self.data.IDType)
+    pub fn id_type(&self) -> Result<IdType, DecodeError> {
+        IdType::from_u32(self.data.IDType)
             .ok_or(DecodeError::EnumMappingError("IDType", self.data.IDType))
     }
 
-    pub fn with_id_type(&mut self, id_type: IDType) {
+    pub fn with_id_type(&mut self, id_type: IdType) {
         self.data.IDType = id_type as u32;
     }
 
