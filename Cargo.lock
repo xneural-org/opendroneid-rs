@@ -145,6 +145,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendroneid"
+version = "0.1.0"
+dependencies = [
+ "opendroneid-sys",
+]
+
+[[package]]
 name = "opendroneid-sys"
 version = "0.1.0"
 dependencies = [

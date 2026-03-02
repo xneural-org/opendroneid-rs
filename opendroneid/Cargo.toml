@@ -1,0 +1,10 @@
+[package]
+name = "opendroneid"
+version = "0.1.0"
+edition = "2024"
+description = "Safe Rust wrapper for Open Drone ID encoding/decoding APIs"
+license = "Apache-2.0"
+repository = "https://github.com/xneural-org/opendroneid-rs"
+
+[dependencies]
+opendroneid-sys = { path = "../opendroneid-sys", default-features = false }
