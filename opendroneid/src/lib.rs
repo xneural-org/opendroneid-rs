@@ -47,7 +47,7 @@ pub use sys::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
-pub enum MessageType {
+pub enum MessageId {
     BasicId = sys::ODID_messagetype_ODID_MESSAGETYPE_BASIC_ID,
     Location = sys::ODID_messagetype_ODID_MESSAGETYPE_LOCATION,
     Auth = sys::ODID_messagetype_ODID_MESSAGETYPE_AUTH,
