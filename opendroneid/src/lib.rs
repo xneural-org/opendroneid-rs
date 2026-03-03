@@ -675,21 +675,21 @@ impl_message!(
 
 /// UAS data is a collection of Open Drone ID messages that together represent the state and identity of a UAS.
 /// It may contain multiple Basic ID and Auth messages, but at most one of each of the other message types.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct UasData {
     /// The Basic ID messages associated with this UAS data.
     /// There may be multiple Basic ID messages, but at least one is required.
-    basic_id: Vec<BasicId>,
+    pub basic_id: Vec<BasicId>,
     /// The Location message associated with this UAS data, if available.
-    location: Option<Location>,
+    pub location: Option<Location>,
     /// The Auth messages associated with this UAS data.
-    auth: Vec<Auth>,
+    pub auth: Vec<Auth>,
     /// The Self ID message associated with this UAS data, if available.
-    self_id: Option<SelfId>,
+    pub self_id: Option<SelfId>,
     /// The System message associated with this UAS data, if available.
-    system: Option<System>,
+    pub system: Option<System>,
     /// The Operator ID message associated with this UAS data, if available.
-    operator_id: Option<OperatorId>,
+    pub operator_id: Option<OperatorId>,
 }
 
 impl UasData {
