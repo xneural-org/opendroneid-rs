@@ -54,11 +54,6 @@ macro_rules! impl_message {
             type Data = $data_ty;
             type Encoded = $encoded_ty;
 
-            #[inline]
-            fn encoded_len(&self) -> usize {
-                std::mem::size_of::<$encoded_ty>()
-            }
-
             fn encode(&self, buf: &mut impl BufMut) -> Result<(), EncodeError> {
                 let encoded_len = self.encoded_len();
                 if buf.remaining_mut() < encoded_len {
@@ -80,12 +75,6 @@ macro_rules! impl_message {
                 };
                 buf.put_slice(bytes);
                 Ok(())
-            }
-
-            fn encode_to_vec(&self) -> Result<Vec<u8>, EncodeError> {
-                let mut buf = Vec::with_capacity(self.encoded_len());
-                self.encode(&mut buf)?;
-                Ok(buf)
             }
 
             fn decode(buf: impl Buf) -> Result<Self, DecodeError> {
