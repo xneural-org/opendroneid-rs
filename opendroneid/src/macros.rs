@@ -13,6 +13,15 @@ macro_rules! impl_message {
             data: $data_ty,
         }
 
+        impl $message_ty {
+            /// Creates a new message with default values.
+            /// The values are the default values defined by the underlying C library,
+            /// which may not be valid.
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+
         impl MessageInternal for $message_ty {
             type Data = $data_ty;
             type Encoded = $encoded_ty;
@@ -45,10 +54,6 @@ macro_rules! impl_message {
         impl Message for $message_ty {
             type Data = $data_ty;
             type Encoded = $encoded_ty;
-
-            fn new() -> Self {
-                Self::default()
-            }
 
             #[inline]
             fn encoded_len() -> usize {
