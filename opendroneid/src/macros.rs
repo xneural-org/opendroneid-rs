@@ -56,12 +56,12 @@ macro_rules! impl_message {
             type Encoded = $encoded_ty;
 
             #[inline]
-            fn encoded_len() -> usize {
+            fn encoded_len(&self) -> usize {
                 std::mem::size_of::<$encoded_ty>()
             }
 
             fn encode(&self, buf: &mut impl BufMut) -> Result<(), EncodeError> {
-                let encoded_len = Self::encoded_len();
+                let encoded_len = self.encoded_len();
                 if buf.remaining_mut() < encoded_len {
                     return Err(EncodeError::BufferTooSmall {
                         message: stringify!($message_ty).to_string(),
@@ -84,27 +84,25 @@ macro_rules! impl_message {
             }
 
             fn encode_to_vec(&self) -> Result<Vec<u8>, EncodeError> {
-                let mut buf = Vec::with_capacity(Self::encoded_len());
+                let mut buf = Vec::with_capacity(self.encoded_len());
                 self.encode(&mut buf)?;
                 Ok(buf)
             }
 
             fn decode(buf: impl Buf) -> Result<Self, DecodeError> {
                 let mut buf = buf;
-                if buf.remaining() < Self::encoded_len() {
+                let encoded_len = std::mem::size_of::<Self::Encoded>();
+                if buf.remaining() < encoded_len {
                     return Err(DecodeError::BufferTooSmall {
                         message: stringify!($message_ty).to_string(),
                         remaining: buf.remaining(),
-                        expected: Self::encoded_len(),
+                        expected: encoded_len,
                     });
                 }
 
                 let mut encoded = std::mem::MaybeUninit::<Self::Encoded>::uninit();
                 let encoded_bytes = unsafe {
-                    std::slice::from_raw_parts_mut(
-                        encoded.as_mut_ptr().cast::<u8>(),
-                        Self::encoded_len(),
-                    )
+                    std::slice::from_raw_parts_mut(encoded.as_mut_ptr().cast::<u8>(), encoded_len)
                 };
                 buf.copy_to_slice(encoded_bytes);
 

@@ -250,7 +250,7 @@ pub trait Message: Sized {
     type Encoded;
 
     /// Returns the length of the encoded message in bytes.
-    fn encoded_len() -> usize;
+    fn encoded_len(&self) -> usize;
     /// Encodes the message to a buffer.
     ///
     /// An error will be returned if the buffer does not have sufficient capacity.
