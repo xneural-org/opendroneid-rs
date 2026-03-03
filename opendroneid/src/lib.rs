@@ -37,6 +37,14 @@ pub enum DecodeError {
     InvalidValue(&'static str, String),
 }
 
+pub use sys::{
+    MAX_ALT as MAX_ALTITUDE, MAX_DIR as MAX_DIRECTION, MAX_LAT as MAX_LATITUDE,
+    MAX_LON as MAX_LONGITUDE, MAX_SPEED_H as MAX_SPEED_HORIZONTAL,
+    MAX_SPEED_V as MAX_SPEED_VERTICAL, MIN_ALT as MIN_ALTITUDE, MIN_DIR as MIN_DIRECTION,
+    MIN_LAT as MIN_LATITUDE, MIN_LON as MIN_LONGITUDE, MIN_SPEED_H as MIN_SPEED_HORIZONTAL,
+    MIN_SPEED_V as MIN_SPEED_VERTICAL,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum MessageType {
@@ -341,7 +349,7 @@ impl Location {
     }
 
     pub fn with_direction(&mut self, direction: f32) -> Result<(), EncodeError> {
-        if direction < sys::MIN_DIR as f32 || direction > sys::MAX_DIR as f32 {
+        if direction < MIN_DIRECTION as f32 || direction > MAX_DIRECTION as f32 {
             return Err(EncodeError::InvalidValue(
                 "direction",
                 direction.to_string(),
@@ -360,7 +368,7 @@ impl Location {
     }
 
     pub fn with_speed_horizontal(&mut self, speed: f32) -> Result<(), EncodeError> {
-        if speed < sys::MIN_SPEED_H as f32 || speed > sys::MAX_SPEED_H as f32 {
+        if speed < MIN_SPEED_HORIZONTAL as f32 || speed > MAX_SPEED_HORIZONTAL as f32 {
             return Err(EncodeError::InvalidValue(
                 "speed_horizontal",
                 speed.to_string(),
@@ -379,7 +387,7 @@ impl Location {
     }
 
     pub fn with_speed_vertical(&mut self, speed: f32) -> Result<(), EncodeError> {
-        if speed < sys::MIN_SPEED_V as f32 || speed > sys::MAX_SPEED_V as f32 {
+        if speed < MIN_SPEED_VERTICAL as f32 || speed > MAX_SPEED_VERTICAL as f32 {
             return Err(EncodeError::InvalidValue(
                 "speed_vertical",
                 speed.to_string(),
@@ -394,7 +402,7 @@ impl Location {
     }
 
     pub fn with_latitude(&mut self, latitude: f64) -> Result<(), EncodeError> {
-        if latitude < sys::MIN_LAT as f64 || latitude > sys::MAX_LAT as f64 {
+        if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
             return Err(EncodeError::InvalidValue("latitude", latitude.to_string()));
         }
         self.data.Latitude = latitude;
@@ -405,7 +413,7 @@ impl Location {
         self.data.Longitude
     }
     pub fn with_longitude(&mut self, longitude: f64) -> Result<(), EncodeError> {
-        if longitude < sys::MIN_LON as f64 || longitude > sys::MAX_LON as f64 {
+        if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
             return Err(EncodeError::InvalidValue(
                 "longitude",
                 longitude.to_string(),
@@ -422,7 +430,7 @@ impl Location {
         }
     }
     pub fn with_altitude_barometric(&mut self, altitude: f32) -> Result<(), EncodeError> {
-        if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
+        if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
             return Err(EncodeError::InvalidValue(
                 "altitude_barometric",
                 altitude.to_string(),
@@ -468,7 +476,7 @@ impl Location {
         }
     }
     pub fn with_height(&mut self, height: f32) -> Result<(), EncodeError> {
-        if height < sys::MIN_ALT as f32 || height > sys::MAX_ALT as f32 {
+        if height < MIN_ALTITUDE as f32 || height > MAX_ALTITUDE as f32 {
             return Err(EncodeError::InvalidValue("height", height.to_string()));
         }
         self.data.Height = height;
