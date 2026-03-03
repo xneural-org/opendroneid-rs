@@ -315,10 +315,8 @@ macros::impl_message!(
     ///
     /// // Create a new Basic ID message with default values.
     /// // The default values are defined by the underlying C library and may not be valid.
-    /// let basic_id = BasicId::default();
-    ///
-    /// /// Set fields of the Basic ID message using the builder pattern.
-    /// basic_id
+    /// let basic_id = BasicId::default()
+    ///     // Set fields of the Basic ID message using the builder pattern.
     ///     .with_ua_type(opendroneid::UaType::Aeroplane)
     ///     .with_id_type(opendroneid::IdType::SerialNumber)
     ///     .with_uas_id([0; 21]);
@@ -370,14 +368,16 @@ macros::impl_message!(
     /// use opendroneid::Location;
     ///
     /// // Create a new Location message with default values.
-    /// let location = Location::default();
-    /// // Set fields of the Location message using the builder pattern.
-    /// location
-    ///    .with_status(opendroneid::Status::Airborne)
-    ///    .with_latitude(37.7749)
-    ///    .with_longitude(-122.4194)
-    ///    .with_direction(90.0)
-    ///   .with_speed_horizontal(5.0);
+    /// let location = Location::default()
+    ///     // Set fields of the Location message using the builder pattern.
+    ///     .with_status(opendroneid::Status::Airborne)
+    ///     .with_latitude(37.7749)
+    ///     .expect("Invalid latitude value")
+    ///     .with_longitude(-77.4194)
+    ///     .expect("Invalid longitude value")
+    ///     .with_direction(90.0)
+    ///     .expect("Invalid direction value")
+    ///     .with_speed_horizontal(5.0);
     /// ```
     Location,
     sys::ODID_Location_data,
@@ -474,6 +474,7 @@ impl Location {
         self.data.Longitude
     }
     /// Sets the longitude of the UA in degrees.
+    /// Returns an error if the longitude is out of the valid range defined by the protocol.
     pub fn with_longitude(mut self, longitude: f64) -> Result<Self, EncodeError> {
         if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
             return Err(EncodeError::InvalidValue(
@@ -726,7 +727,23 @@ fn encode_timestamp(value: chrono::DateTime<chrono::Utc>) -> f32 {
     (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0)
 }
 
+/// Number of seconds from 1970-01-01 to 2019-01-01
+#[cfg(feature = "chrono")]
+const EPOCH_OFFSET: i64 = 1546300800;
+
 macros::impl_message!(
+    /// The Authentication Message defines a field that provides a means for authenticating the
+    /// identity of the UA sending the message.
+    ///
+    /// ```rust
+    /// use opendroneid::Auth;
+    ///
+    /// // Create a new Auth message with default values.
+    /// let auth = Auth::default()
+    ///     // Set fields of the Auth message using the builder pattern.
+    ///     .with_auth_type(opendroneid::AuthenticationType::UasIdSignature)
+    ///     .with_timestamp(12345);
+    /// ```
     Auth,
     sys::ODID_Auth_data,
     sys::ODID_Auth_encoded,
@@ -735,7 +752,141 @@ macros::impl_message!(
     sys::decodeAuthMessage
 );
 
+impl Auth {
+    /// Returns the authentication data page index.
+    pub fn data_page(&self) -> u8 {
+        self.data.DataPage
+    }
+    /// Sets the authentication data page index.
+    pub fn with_data_page(mut self, data_page: u8) -> Result<Self, EncodeError> {
+        if data_page >= sys::ODID_AUTH_MAX_PAGES as u8 {
+            return Err(EncodeError::InvalidValue(
+                "data_page",
+                data_page.to_string(),
+            ));
+        }
+        self.data.DataPage = data_page;
+        Ok(self)
+    }
+    /// Returns the authentication type of the message, or an error if the value is invalid.
+    pub fn auth_type(&self) -> Result<AuthenticationType, DecodeError> {
+        AuthenticationType::from_u32(self.data.AuthType).ok_or(DecodeError::EnumMappingError(
+            "AuthType",
+            self.data.AuthType,
+        ))
+    }
+
+    /// Sets the authentication type of the message.
+    pub fn with_auth_type(mut self, auth_type: AuthenticationType) -> Self {
+        self.data.AuthType = auth_type as u32;
+        self
+    }
+
+    /// Returns the last authentication page index.
+    pub fn last_page_index(&self) -> u8 {
+        self.data.LastPageIndex
+    }
+
+    /// Sets the last authentication page index.
+    pub fn with_last_page_index(mut self, last_page_index: u8) -> Result<Self, EncodeError> {
+        if last_page_index >= sys::ODID_AUTH_MAX_PAGES as u8 {
+            return Err(EncodeError::InvalidValue(
+                "last_page_index",
+                last_page_index.to_string(),
+            ));
+        }
+
+        if self.data.DataPage == 0 {
+            let max_len = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE
+                + last_page_index as u32 * sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE;
+            if self.data.Length as u32 > max_len {
+                return Err(EncodeError::InvalidValue(
+                    "length",
+                    self.data.Length.to_string(),
+                ));
+            }
+        }
+
+        self.data.LastPageIndex = last_page_index;
+        Ok(self)
+    }
+
+    /// Returns the authentication data length in bytes.
+    pub fn length(&self) -> u8 {
+        self.data.Length
+    }
+
+    /// Sets the authentication data length in bytes.
+    pub fn with_length(mut self, length: u8) -> Result<Self, EncodeError> {
+        if self.data.DataPage == 0 {
+            let max_len = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE
+                + self.data.LastPageIndex as u32 * sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE;
+            if length as u32 > max_len {
+                return Err(EncodeError::InvalidValue("length", length.to_string()));
+            }
+        }
+
+        self.data.Length = length;
+        Ok(self)
+    }
+
+    /// Returns the authentication timestamp value.
+    ///
+    /// 32 bit Unix Timestamp (UTC) in seconds since (epoch) 00:00:00 01/01/2019 (to re-
+    /// late back to standard Unix timestamp, add 1546300800 to the common epoch of
+    /// 00:00:00 01/01/1970)
+    pub fn timestamp(&self) -> u32 {
+        self.data.Timestamp
+    }
+
+    /// Sets the authentication timestamp value.
+    pub fn with_timestamp(mut self, timestamp: u32) -> Self {
+        self.data.Timestamp = timestamp;
+        self
+    }
+
+    #[cfg(feature = "chrono")]
+    /// Returns the authentication timestamp as a `chrono::DateTime<Utc>`.
+    /// Returns None if the timestamp value is invalid.
+    pub fn chrono_timestamp(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        chrono::DateTime::<chrono::Utc>::from_timestamp(
+            self.data.Timestamp as i64 + EPOCH_OFFSET,
+            0,
+        )
+    }
+
+    #[cfg(feature = "chrono")]
+    /// Sets the authentication timestamp using a `chrono::DateTime<Utc>`.
+    pub fn with_chrono_timestamp(mut self, timestamp: chrono::DateTime<chrono::Utc>) -> Self {
+        self.data.Timestamp = (timestamp.timestamp() - EPOCH_OFFSET) as u32;
+        self
+    }
+
+    /// Returns the authentication data payload bytes.
+    pub fn auth_data(&self) -> &[u8; 24] {
+        &self.data.AuthData
+    }
+
+    /// Sets the authentication data payload bytes.
+    pub fn with_auth_data(mut self, auth_data: [u8; 24]) -> Self {
+        self.data.AuthData = auth_data;
+        self
+    }
+}
+
 macros::impl_message!(
+    /// The Self-ID Message is an opportunity for the Remote Pilot to declare their identity
+    /// or purpose (intent) of the flight. This message can serve to reduce the perceived threat
+    /// of a UA flying in a particular area or manner.
+    ///
+    /// ```rust
+    /// use opendroneid::SelfId;
+    ///
+    /// // Create a new Self-ID message with default values.
+    /// let self_id = SelfId::default()
+    ///     // Set fields of the Self-ID message using the builder pattern.
+    ///     .with_desc_type(opendroneid::DescriptionType::Emergency);
+    /// ```
     SelfId,
     sys::ODID_SelfID_data,
     sys::ODID_SelfID_encoded,
@@ -744,7 +895,37 @@ macros::impl_message!(
     sys::decodeSelfIDMessage
 );
 
+impl SelfId {
+    /// Returns the description type of the message, or an error if the value is invalid.
+    pub fn desc_type(&self) -> Result<DescriptionType, DecodeError> {
+        DescriptionType::from_u32(self.data.DescType).ok_or(DecodeError::EnumMappingError(
+            "DescType",
+            self.data.DescType,
+        ))
+    }
+
+    /// Sets the description type of the message.
+    pub fn with_desc_type(mut self, desc_type: DescriptionType) -> Self {
+        self.data.DescType = desc_type as u32;
+        self
+    }
+
+    /// Returns the description payload as a byte array.
+    pub fn desc(&self) -> &[i8; 24] {
+        &self.data.Desc
+    }
+
+    /// Sets the description payload as a byte array.
+    pub fn with_desc(mut self, desc: [i8; 24]) -> Self {
+        self.data.Desc = desc;
+        self
+    }
+}
+
 macros::impl_message!(
+    /// The System Message contains general system information including information about the
+    /// Remote Pilot location and flight area. It can also include information about UAs flying
+    /// in formation.
     System,
     sys::ODID_System_data,
     sys::ODID_System_encoded,
@@ -753,7 +934,197 @@ macros::impl_message!(
     sys::decodeSystemMessage
 );
 
+impl System {
+    /// Returns the operator location type of the message, or an error if the value is invalid.
+    pub fn operator_location_type(&self) -> Result<OperatorLocationType, DecodeError> {
+        OperatorLocationType::from_u32(self.data.OperatorLocationType).ok_or(
+            DecodeError::EnumMappingError("OperatorLocationType", self.data.OperatorLocationType),
+        )
+    }
+
+    /// Sets the operator location type of the message.
+    pub fn with_operator_location_type(mut self, location_type: OperatorLocationType) -> Self {
+        self.data.OperatorLocationType = location_type as u32;
+        self
+    }
+
+    /// Returns the classification type of the message, or an error if the value is invalid.
+    pub fn classification_type(&self) -> Result<ClassificationType, DecodeError> {
+        ClassificationType::from_u32(self.data.ClassificationType).ok_or(
+            DecodeError::EnumMappingError("ClassificationType", self.data.ClassificationType),
+        )
+    }
+
+    /// Sets the classification type of the message.
+    pub fn with_classification_type(mut self, classification_type: ClassificationType) -> Self {
+        self.data.ClassificationType = classification_type as u32;
+        self
+    }
+
+    /// Returns the operator latitude in degrees.
+    pub fn operator_latitude(&self) -> f64 {
+        self.data.OperatorLatitude
+    }
+
+    /// Sets the operator latitude in degrees.
+    pub fn with_operator_latitude(mut self, latitude: f64) -> Result<Self, EncodeError> {
+        if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
+            return Err(EncodeError::InvalidValue(
+                "operator_latitude",
+                latitude.to_string(),
+            ));
+        }
+        self.data.OperatorLatitude = latitude;
+        Ok(self)
+    }
+
+    /// Returns the operator longitude in degrees.
+    pub fn operator_longitude(&self) -> f64 {
+        self.data.OperatorLongitude
+    }
+
+    /// Sets the operator longitude in degrees.
+    pub fn with_operator_longitude(mut self, longitude: f64) -> Result<Self, EncodeError> {
+        if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
+            return Err(EncodeError::InvalidValue(
+                "operator_longitude",
+                longitude.to_string(),
+            ));
+        }
+        self.data.OperatorLongitude = longitude;
+        Ok(self)
+    }
+
+    /// Returns the area count value.
+    pub fn area_count(&self) -> u16 {
+        self.data.AreaCount
+    }
+
+    /// Sets the area count value.
+    pub fn with_area_count(mut self, area_count: u16) -> Self {
+        self.data.AreaCount = area_count;
+        self
+    }
+
+    /// Returns the area radius in meters.
+    pub fn area_radius(&self) -> u16 {
+        self.data.AreaRadius
+    }
+
+    /// Sets the area radius in meters.
+    pub fn with_area_radius(mut self, area_radius: u16) -> Result<Self, EncodeError> {
+        if area_radius > sys::MAX_AREA_RADIUS as u16 {
+            return Err(EncodeError::InvalidValue(
+                "area_radius",
+                area_radius.to_string(),
+            ));
+        }
+        self.data.AreaRadius = area_radius;
+        Ok(self)
+    }
+
+    /// Returns the area ceiling altitude in meters.
+    pub fn area_ceiling(&self) -> f32 {
+        self.data.AreaCeiling
+    }
+
+    /// Sets the area ceiling altitude in meters.
+    pub fn with_area_ceiling(mut self, area_ceiling: f32) -> Result<Self, EncodeError> {
+        if area_ceiling < MIN_ALTITUDE as f32 || area_ceiling > MAX_ALTITUDE as f32 {
+            return Err(EncodeError::InvalidValue(
+                "area_ceiling",
+                area_ceiling.to_string(),
+            ));
+        }
+        self.data.AreaCeiling = area_ceiling;
+        Ok(self)
+    }
+
+    /// Returns the area floor altitude in meters.
+    pub fn area_floor(&self) -> f32 {
+        self.data.AreaFloor
+    }
+
+    /// Sets the area floor altitude in meters.
+    pub fn with_area_floor(mut self, area_floor: f32) -> Result<Self, EncodeError> {
+        if area_floor < MIN_ALTITUDE as f32 || area_floor > MAX_ALTITUDE as f32 {
+            return Err(EncodeError::InvalidValue(
+                "area_floor",
+                area_floor.to_string(),
+            ));
+        }
+        self.data.AreaFloor = area_floor;
+        Ok(self)
+    }
+
+    /// Returns the EU category of the message, or an error if the value is invalid.
+    pub fn category(&self) -> Result<Category, DecodeError> {
+        Category::from_u32(self.data.CategoryEU).ok_or(DecodeError::EnumMappingError(
+            "CategoryEU",
+            self.data.CategoryEU,
+        ))
+    }
+
+    /// Sets the EU category of the message.
+    pub fn with_category(mut self, category: Category) -> Self {
+        self.data.CategoryEU = category as u32;
+        self
+    }
+
+    /// Returns the EU class of the message, or an error if the value is invalid.
+    pub fn class_eu(&self) -> Result<ClassEu, DecodeError> {
+        ClassEu::from_u32(self.data.ClassEU)
+            .ok_or(DecodeError::EnumMappingError("ClassEU", self.data.ClassEU))
+    }
+
+    /// Sets the EU class of the message.
+    pub fn with_class_eu(mut self, class_eu: ClassEu) -> Self {
+        self.data.ClassEU = class_eu as u32;
+        self
+    }
+
+    /// Returns the operator geodetic altitude in meters.
+    pub fn operator_altitude_geo(&self) -> f32 {
+        self.data.OperatorAltitudeGeo
+    }
+
+    /// Sets the operator geodetic altitude in meters.
+    pub fn with_operator_altitude_geo(mut self, altitude: f32) -> Result<Self, EncodeError> {
+        if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
+            return Err(EncodeError::InvalidValue(
+                "operator_altitude_geo",
+                altitude.to_string(),
+            ));
+        }
+        self.data.OperatorAltitudeGeo = altitude;
+        Ok(self)
+    }
+
+    /// Returns the timestamp value.
+    pub fn timestamp(&self) -> u32 {
+        self.data.Timestamp
+    }
+
+    /// Sets the timestamp value.
+    pub fn with_timestamp(mut self, timestamp: u32) -> Self {
+        self.data.Timestamp = timestamp;
+        self
+    }
+}
+
 macros::impl_message!(
+    /// The Operator ID Message contains the CAA issued Operator ID formatted as described
+    /// in Operator ID.
+    ///
+    /// ```rust
+    /// use opendroneid::OperatorId;
+    ///
+    /// // Create a new Operator ID message with default values.
+    /// let operator_id = OperatorId::default()
+    ///      // Set fields of the Operator ID message using the builder pattern.
+    ///     .with_operator_id_type(opendroneid::OperatorIdType::OperatorId)
+    ///     .with_operator_id([0; 21]);
+    /// ```
     OperatorId,
     sys::ODID_OperatorID_data,
     sys::ODID_OperatorID_encoded,
@@ -761,6 +1132,33 @@ macros::impl_message!(
     sys::encodeOperatorIDMessage,
     sys::decodeOperatorIDMessage
 );
+
+impl OperatorId {
+    /// Returns the operator ID type of the message, or an error if the value is invalid.
+    pub fn operator_id_type(&self) -> Result<OperatorIdType, DecodeError> {
+        OperatorIdType::from_u32(self.data.OperatorIdType).ok_or(DecodeError::EnumMappingError(
+            "OperatorIdType",
+            self.data.OperatorIdType,
+        ))
+    }
+
+    /// Sets the operator ID type of the message.
+    pub fn with_operator_id_type(mut self, operator_id_type: OperatorIdType) -> Self {
+        self.data.OperatorIdType = operator_id_type as u32;
+        self
+    }
+
+    /// Returns the operator ID payload as a byte array.
+    pub fn operator_id(&self) -> &[i8; 21] {
+        &self.data.OperatorId
+    }
+
+    /// Sets the operator ID payload as a byte array.
+    pub fn with_operator_id(mut self, operator_id: [i8; 21]) -> Self {
+        self.data.OperatorId = operator_id;
+        self
+    }
+}
 
 /// UAS data is a collection of Open Drone ID messages that together represent the state and identity of a UAS.
 /// It may contain multiple Basic ID and Auth messages, but at most one of each of the other message types.
