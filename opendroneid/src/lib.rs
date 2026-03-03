@@ -42,6 +42,7 @@ impl TryFrom<u8> for MessageId {
     }
 }
 
+/// Type of the [BasicId::uas_id]. Accessible through [BasicId::id_type].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum IdType {
@@ -53,6 +54,7 @@ pub enum IdType {
     SpecificSessionId = sys::ODID_idtype_ODID_IDTYPE_SPECIFIC_SESSION_ID,
 }
 
+/// Type of the UA in the [BasicId] message. Accessible through [BasicId::ua_type].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum UaType {
@@ -75,6 +77,7 @@ pub enum UaType {
     Other = sys::ODID_uatype_ODID_UATYPE_OTHER,
 }
 
+/// Status of the UA reported in the [Location] message. Accessible through [Location::status].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum Status {
@@ -86,14 +89,18 @@ pub enum Status {
     RemoteIdSystemFailure = sys::ODID_status_ODID_STATUS_REMOTE_ID_SYSTEM_FAILURE,
 }
 
+/// Reference for the [Location::height] of the UA provided by the [Location] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum HeightReference {
+    /// Indicates that the height is relative to the takeoff location of the UA.
     #[default]
     Takeoff = sys::ODID_Height_reference_ODID_HEIGHT_REF_OVER_TAKEOFF,
+    /// Indicates that the height is relative to the ground level at the current location of the UA.
     Ground = sys::ODID_Height_reference_ODID_HEIGHT_REF_OVER_GROUND,
 }
 
+/// Accuracy of horizontal position information in the [Location] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum HorizontalAccuracy {
@@ -113,6 +120,7 @@ pub enum HorizontalAccuracy {
     LessThan1Meter = sys::ODID_Horizontal_accuracy_ODID_HOR_ACC_1_METER,
 }
 
+/// Accuracy of the [Location::altitude_barometric] and [Location::altitude_geodetic] fields in the [Location] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum VerticalAccuracy {
@@ -126,6 +134,8 @@ pub enum VerticalAccuracy {
     LessThan1Meter = sys::ODID_Vertical_accuracy_ODID_VER_ACC_1_METER,
 }
 
+/// Accuracy of the [Location::speed_horizontal] and [Location::speed_vertical] fields in the
+/// [Location] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum SpeedAccuracy {
@@ -137,28 +147,45 @@ pub enum SpeedAccuracy {
     LessThan0_3MetersPerSecond = sys::ODID_Speed_accuracy_ODID_SPEED_ACC_0_3_METERS_PER_SECOND,
 }
 
+/// Accuracy of the [Location::timestamp] information in the [Location] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum TimestampAccuracy {
     #[default]
     Unknown = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_UNKNOWN,
+    /// Indicates that the timestamp is accurate to within 0.1 seconds.
     LessThan0_1Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_1_SECOND,
+    /// Indicates that the timestamp is accurate to within 0.2 seconds.
     LessThan0_2Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_2_SECOND,
+    /// Indicates that the timestamp is accurate to within 0.3 seconds.
     LessThan0_3Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_3_SECOND,
+    /// Indicates that the timestamp is accurate to within 0.4 seconds.
     LessThan0_4Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_4_SECOND,
+    /// Indicates that the timestamp is accurate to within 0.5 seconds.
     LessThan0_5Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_5_SECOND,
+    /// Indicates that the timestamp is accurate to within 0.6 seconds.
     LessThan0_6Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_6_SECOND,
+    /// Indicates that the timestamp is accurate to within 0.7 seconds.
     LessThan0_7Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_7_SECOND,
+    /// Indicates that the timestamp is accurate to within 0.8 seconds.
     LessThan0_8Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_8_SECOND,
+    /// Indicates that the timestamp is accurate to within 0.9 seconds.
     LessThan0_9Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_0_9_SECOND,
+    /// Indicates that the timestamp is accurate to within 1.0 seconds.
     LessThan1_0Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_1_0_SECOND,
+    /// Indicates that the timestamp is accurate to within 1.1 seconds.
     LessThan1_1Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_1_1_SECOND,
+    /// Indicates that the timestamp is accurate to within 1.2 seconds.
     LessThan1_2Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_1_2_SECOND,
+    /// Indicates that the timestamp is accurate to within 1.3 seconds.
     LessThan1_3Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_1_3_SECOND,
+    /// Indicates that the timestamp is accurate to within 1.4 seconds.
     LessThan1_4Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_1_4_SECOND,
+    /// Indicates that the timestamp is accurate to within 1.5 seconds.
     LessThan1_5Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_1_5_SECOND,
 }
 
+/// Type of authentication used in the [Auth] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum AuthenticationType {
@@ -281,6 +308,21 @@ trait MessageInternal: Sized {
 }
 
 macros::impl_message!(
+    /// Basic ID message for UA identification.
+    ///
+    /// ``` rust
+    /// use opendroneid::BasicId;
+    ///
+    /// // Create a new Basic ID message with default values.
+    /// // The default values are defined by the underlying C library and may not be valid.
+    /// let basic_id = BasicId::default();
+    ///
+    /// /// Set fields of the Basic ID message using the builder pattern.
+    /// basic_id
+    ///     .with_ua_type(opendroneid::UaType::Aeroplane)
+    ///     .with_id_type(opendroneid::IdType::SerialNumber)
+    ///     .with_uas_id([0; 21]);
+    /// ```
     BasicId,
     sys::ODID_BasicID_data,
     sys::ODID_BasicID_encoded,
@@ -290,30 +332,31 @@ macros::impl_message!(
 );
 
 impl BasicId {
+    /// Returns the UA type of the message, or an error if the value is invalid.
     pub fn ua_type(&self) -> Result<UaType, DecodeError> {
         UaType::from_u32(self.data.UAType)
             .ok_or(DecodeError::EnumMappingError("UAType", self.data.UAType))
     }
-
+    /// Sets the UA type of the message.
     pub fn with_ua_type(mut self, ua_type: UaType) -> Self {
         self.data.UAType = ua_type as u32;
         self
     }
-
+    /// Returns the ID type of the message, or an error if the value is invalid.
     pub fn id_type(&self) -> Result<IdType, DecodeError> {
         IdType::from_u32(self.data.IDType)
             .ok_or(DecodeError::EnumMappingError("IDType", self.data.IDType))
     }
-
+    /// Sets the ID type of the message.
     pub fn with_id_type(mut self, id_type: IdType) -> Self {
         self.data.IDType = id_type as u32;
         self
     }
-
+    /// Returns the UAS ID of the message as a byte array.
     pub fn uas_id(&self) -> &[i8; 21] {
         &self.data.UASID
     }
-
+    /// Sets the UAS ID of the message.
     pub fn with_uas_id(mut self, uas_id: [i8; 21]) -> Self {
         self.data.UASID = uas_id;
         self
@@ -321,6 +364,21 @@ impl BasicId {
 }
 
 macros::impl_message!(
+    /// Location message as defined in the underlying C library.
+    ///
+    /// ```rust
+    /// use opendroneid::Location;
+    ///
+    /// // Create a new Location message with default values.
+    /// let location = Location::default();
+    /// // Set fields of the Location message using the builder pattern.
+    /// location
+    ///    .with_status(opendroneid::Status::Airborne)
+    ///    .with_latitude(37.7749)
+    ///    .with_longitude(-122.4194)
+    ///    .with_direction(90.0)
+    ///   .with_speed_horizontal(5.0);
+    /// ```
     Location,
     sys::ODID_Location_data,
     sys::ODID_Location_encoded,
@@ -330,16 +388,17 @@ macros::impl_message!(
 );
 
 impl Location {
+    /// Returns the status of the message, or an error if the value is invalid.
     pub fn status(&self) -> Result<Status, DecodeError> {
         Status::from_u32(self.data.Status)
             .ok_or(DecodeError::EnumMappingError("Status", self.data.Status))
     }
-
+    /// Sets the status of the message.
     pub fn with_status(mut self, status: Status) -> Self {
         self.data.Status = status as u32;
         self
     }
-
+    /// Returns the direction of the UA in degrees from north, or None if the value is invalid.
     pub fn direction(&self) -> Option<f32> {
         if self.data.Direction == sys::INV_DIR as f32 {
             None
@@ -347,7 +406,7 @@ impl Location {
             Some(self.data.Direction)
         }
     }
-
+    /// Sets the direction of the UA in degrees from north.
     pub fn with_direction(mut self, direction: f32) -> Result<Self, EncodeError> {
         if direction < MIN_DIRECTION as f32 || direction > MAX_DIRECTION as f32 {
             return Err(EncodeError::InvalidValue(
@@ -358,7 +417,7 @@ impl Location {
         self.data.Direction = direction;
         Ok(self)
     }
-
+    /// Returns the horizontal speed of the UA in m/s, or None if the value is invalid.
     pub fn speed_horizontal(&self) -> Option<f32> {
         if self.data.SpeedHorizontal == sys::INV_SPEED_H as f32 {
             None
@@ -366,7 +425,8 @@ impl Location {
             Some(self.data.SpeedHorizontal)
         }
     }
-
+    /// Sets the horizontal speed of the UA in m/s.
+    /// Returns an error if the speed is out of the valid range defined by the protocol.
     pub fn with_speed_horizontal(mut self, speed: f32) -> Result<Self, EncodeError> {
         if speed < MIN_SPEED_HORIZONTAL as f32 || speed > MAX_SPEED_HORIZONTAL as f32 {
             return Err(EncodeError::InvalidValue(
@@ -377,7 +437,7 @@ impl Location {
         self.data.SpeedHorizontal = speed;
         Ok(self)
     }
-
+    /// Returns the vertical speed of the UA in m/s, or None if the value is invalid.
     pub fn speed_vertical(&self) -> Option<f32> {
         if self.data.SpeedVertical == sys::INV_SPEED_V as f32 {
             None
@@ -385,7 +445,7 @@ impl Location {
             Some(self.data.SpeedVertical)
         }
     }
-
+    /// Sets the vertical speed of the UA in m/s.
     pub fn with_speed_vertical(mut self, speed: f32) -> Result<Self, EncodeError> {
         if speed < MIN_SPEED_VERTICAL as f32 || speed > MAX_SPEED_VERTICAL as f32 {
             return Err(EncodeError::InvalidValue(
@@ -396,11 +456,12 @@ impl Location {
         self.data.SpeedVertical = speed;
         Ok(self)
     }
-
+    /// Returns the latitude of the UA in degrees.
     pub fn latitude(&self) -> f64 {
         self.data.Latitude
     }
-
+    /// Sets the latitude of the UA in degrees.
+    /// Returns an error if the latitude is out of the valid range defined by the protocol.
     pub fn with_latitude(mut self, latitude: f64) -> Result<Self, EncodeError> {
         if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
             return Err(EncodeError::InvalidValue("latitude", latitude.to_string()));
@@ -408,10 +469,11 @@ impl Location {
         self.data.Latitude = latitude;
         Ok(self)
     }
-
+    /// Returns the longitude of the UA in degrees.
     pub fn longitude(&self) -> f64 {
         self.data.Longitude
     }
+    /// Sets the longitude of the UA in degrees.
     pub fn with_longitude(mut self, longitude: f64) -> Result<Self, EncodeError> {
         if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
             return Err(EncodeError::InvalidValue(
@@ -422,6 +484,10 @@ impl Location {
         self.data.Longitude = longitude;
         Ok(self)
     }
+    /// Returns the barometric altitude of the UA in meters, or None if the value is invalid.
+    ///
+    /// The barometric altitude is the uncorrected barometric pressure altitude
+    /// (based on reference standard 29.92 inHg, 1013.25 mb).
     pub fn altitude_barometric(&self) -> Option<f32> {
         if self.data.AltitudeBaro == sys::INV_ALT as f32 {
             None
@@ -429,6 +495,8 @@ impl Location {
             Some(self.data.AltitudeBaro)
         }
     }
+    /// Sets the barometric altitude of the UA in meters.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol.
     pub fn with_altitude_barometric(mut self, altitude: f32) -> Result<Self, EncodeError> {
         if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
             return Err(EncodeError::InvalidValue(
@@ -439,6 +507,9 @@ impl Location {
         self.data.AltitudeBaro = altitude;
         Ok(self)
     }
+    /// Returns the geodetic altitude of the UA in meters, or None if the value is invalid.
+    ///
+    /// The geodetic altitude is the distance above or below the surface of the WGS-84 ellipsoid.
     pub fn altitude_geodetic(&self) -> Option<f32> {
         if self.data.AltitudeGeo == sys::INV_ALT as f32 {
             None
@@ -446,7 +517,10 @@ impl Location {
             Some(self.data.AltitudeGeo)
         }
     }
-
+    /// Sets the geodetic altitude of the UA in meters.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol.
+    ///
+    /// The geodetic altitude is the distance above or below the surface of the WGS-84 ellipsoid.
     pub fn with_altitude_geodetic(mut self, altitude: f32) -> Result<Self, EncodeError> {
         if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
             return Err(EncodeError::InvalidValue(
@@ -457,18 +531,19 @@ impl Location {
         self.data.AltitudeGeo = altitude;
         Ok(self)
     }
-
+    /// Returns the height reference of the UA, or an error if the value is invalid.
     pub fn height_type(&self) -> Result<HeightReference, DecodeError> {
         HeightReference::from_u32(self.data.HeightType).ok_or(DecodeError::EnumMappingError(
             "HeightType",
             self.data.HeightType,
         ))
     }
+    /// Sets the height reference of the UA.
     pub fn with_height_type(mut self, height_type: HeightReference) -> Self {
         self.data.HeightType = height_type as u32;
         self
     }
-
+    /// Returns the height of the UA in meters, or None if the value is invalid.
     pub fn height(&self) -> Option<f32> {
         if self.data.Height == sys::INV_ALT as f32 {
             None
@@ -476,6 +551,8 @@ impl Location {
             Some(self.data.Height)
         }
     }
+    /// Sets the height of the UA in meters.
+    /// Returns an error if the height is out of the valid range defined by the protocol.
     pub fn with_height(mut self, height: f32) -> Result<Self, EncodeError> {
         if height < MIN_ALTITUDE as f32 || height > MAX_ALTITUDE as f32 {
             return Err(EncodeError::InvalidValue("height", height.to_string()));
@@ -483,59 +560,62 @@ impl Location {
         self.data.Height = height;
         Ok(self)
     }
-
+    /// Returns the horizontal accuracy of the location information, or an error if the value is invalid.
     pub fn horizontal_accuracy(&self) -> Result<HorizontalAccuracy, DecodeError> {
         HorizontalAccuracy::from_u32(self.data.HorizAccuracy).ok_or(DecodeError::EnumMappingError(
             "HorizontalAccuracy",
             self.data.HorizAccuracy,
         ))
     }
-
+    /// Sets the horizontal accuracy of the location information.
     pub fn with_horizontal_accuracy(mut self, accuracy: HorizontalAccuracy) -> Self {
         self.data.HorizAccuracy = accuracy as u32;
         self
     }
-
+    /// Returns the vertical accuracy of the location information, or an error if the value is invalid.
     pub fn vertical_accuracy(&self) -> Result<VerticalAccuracy, DecodeError> {
         VerticalAccuracy::from_u32(self.data.VertAccuracy).ok_or(DecodeError::EnumMappingError(
             "VerticalAccuracy",
             self.data.VertAccuracy,
         ))
     }
-
+    /// Sets the vertical accuracy of the location information.
     pub fn with_vertical_accuracy(mut self, accuracy: VerticalAccuracy) -> Self {
         self.data.VertAccuracy = accuracy as u32;
         self
     }
-
+    /// Returns the barometric accuracy of the location information, or an error if the value is invalid.
     pub fn barometric_accuracy(&self) -> Result<VerticalAccuracy, DecodeError> {
         VerticalAccuracy::from_u32(self.data.BaroAccuracy).ok_or(DecodeError::EnumMappingError(
             "BarometricAccuracy",
             self.data.BaroAccuracy,
         ))
     }
-
+    /// Sets the barometric accuracy of the location information.
     pub fn with_barometric_accuracy(mut self, accuracy: VerticalAccuracy) -> Self {
         self.data.BaroAccuracy = accuracy as u32;
         self
     }
-
+    /// Returns the speed accuracy of the location information, or an error if the value is invalid.
     pub fn speed_accuracy(&self) -> Result<SpeedAccuracy, DecodeError> {
         SpeedAccuracy::from_u32(self.data.SpeedAccuracy).ok_or(DecodeError::EnumMappingError(
             "SpeedAccuracy",
             self.data.SpeedAccuracy,
         ))
     }
+    /// Sets the speed accuracy of the location information.
     pub fn with_speed_accuracy(mut self, accuracy: SpeedAccuracy) -> Self {
         self.data.SpeedAccuracy = accuracy as u32;
         self
     }
+    /// Returns the timestamp accuracy of the location information, or an error if the value is invalid.
     pub fn timestamp_accuracy(&self) -> Result<TimestampAccuracy, DecodeError> {
         TimestampAccuracy::from_u32(self.data.TSAccuracy).ok_or(DecodeError::EnumMappingError(
             "TimestampAccuracy",
             self.data.TSAccuracy,
         ))
     }
+    /// Sets the timestamp accuracy of the location information.
     pub fn with_timestamp_accuracy(mut self, accuracy: TimestampAccuracy) -> Self {
         self.data.TSAccuracy = accuracy as u32;
         self
@@ -550,7 +630,8 @@ impl Location {
         }
     }
 
-    /// Set the timestamp as a floating point number of seconds since the start of the hour
+    /// Sets the timestamp as a floating point number of seconds since the start of the hour.
+    /// Returns an error if the timestamp is out of the valid range defined by the protocol.
     pub fn with_timestamp(mut self, timestamp: f32) -> Result<Self, EncodeError> {
         if timestamp < 0 as f32 || timestamp > sys::MAX_TIMESTAMP as f32 {
             return Err(EncodeError::InvalidValue(
@@ -562,6 +643,14 @@ impl Location {
         Ok(self)
     }
 
+    /// Returns the timestamp as a `chrono::DateTime<chrono::Utc>`, or None if the value is invalid.
+    ///
+    /// <div class="warning">
+    /// The value of the timestamp is only valid within one hour of timestamp creation.
+    /// The internally stored value is relative to the start of the current hour, so, if more than
+    /// one hour has passed since the timestamp was created, the returned value may be inaccurate.
+    /// </div>
+    ///
     #[cfg(feature = "chrono")]
     pub fn chrono_timestamp(&self) -> Option<Result<chrono::DateTime<chrono::Utc>, DecodeError>> {
         if self.data.TimeStamp == sys::INV_TIMESTAMP as f32 {
@@ -570,7 +659,7 @@ impl Location {
             Some(decode_timestamp(self.data.TimeStamp))
         }
     }
-
+    /// Sets the timestamp using a `chrono::DateTime<chrono::Utc>`.
     #[cfg(feature = "chrono")]
     pub fn with_chrono_timestamp(mut self, timestamp: chrono::DateTime<chrono::Utc>) -> Self {
         self.data.TimeStamp = encode_timestamp(timestamp);
