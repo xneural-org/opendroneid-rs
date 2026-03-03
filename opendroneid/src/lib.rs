@@ -306,8 +306,9 @@ impl BasicId {
             .ok_or(DecodeError::EnumMappingError("UAType", self.data.UAType))
     }
 
-    pub fn with_ua_type(&mut self, ua_type: UaType) {
+    pub fn with_ua_type(mut self, ua_type: UaType) -> Self {
         self.data.UAType = ua_type as u32;
+        self
     }
 
     pub fn id_type(&self) -> Result<IdType, DecodeError> {
@@ -315,16 +316,18 @@ impl BasicId {
             .ok_or(DecodeError::EnumMappingError("IDType", self.data.IDType))
     }
 
-    pub fn with_id_type(&mut self, id_type: IdType) {
+    pub fn with_id_type(mut self, id_type: IdType) -> Self {
         self.data.IDType = id_type as u32;
+        self
     }
 
     pub fn uas_id(&self) -> &[i8; 21] {
         &self.data.UASID
     }
 
-    pub fn with_uas_id(&mut self, uas_id: [i8; 21]) {
+    pub fn with_uas_id(mut self, uas_id: [i8; 21]) -> Self {
         self.data.UASID = uas_id;
+        self
     }
 }
 
@@ -343,8 +346,9 @@ impl Location {
             .ok_or(DecodeError::EnumMappingError("Status", self.data.Status))
     }
 
-    pub fn with_status(&mut self, status: Status) {
+    pub fn with_status(mut self, status: Status) -> Self {
         self.data.Status = status as u32;
+        self
     }
 
     pub fn direction(&self) -> Option<f32> {
@@ -355,7 +359,7 @@ impl Location {
         }
     }
 
-    pub fn with_direction(&mut self, direction: f32) -> Result<(), EncodeError> {
+    pub fn with_direction(mut self, direction: f32) -> Result<Self, EncodeError> {
         if direction < MIN_DIRECTION as f32 || direction > MAX_DIRECTION as f32 {
             return Err(EncodeError::InvalidValue(
                 "direction",
@@ -363,7 +367,7 @@ impl Location {
             ));
         }
         self.data.Direction = direction;
-        Ok(())
+        Ok(self)
     }
 
     pub fn speed_horizontal(&self) -> Option<f32> {
@@ -374,7 +378,7 @@ impl Location {
         }
     }
 
-    pub fn with_speed_horizontal(&mut self, speed: f32) -> Result<(), EncodeError> {
+    pub fn with_speed_horizontal(mut self, speed: f32) -> Result<Self, EncodeError> {
         if speed < MIN_SPEED_HORIZONTAL as f32 || speed > MAX_SPEED_HORIZONTAL as f32 {
             return Err(EncodeError::InvalidValue(
                 "speed_horizontal",
@@ -382,7 +386,7 @@ impl Location {
             ));
         }
         self.data.SpeedHorizontal = speed;
-        Ok(())
+        Ok(self)
     }
 
     pub fn speed_vertical(&self) -> Option<f32> {
@@ -393,7 +397,7 @@ impl Location {
         }
     }
 
-    pub fn with_speed_vertical(&mut self, speed: f32) -> Result<(), EncodeError> {
+    pub fn with_speed_vertical(mut self, speed: f32) -> Result<Self, EncodeError> {
         if speed < MIN_SPEED_VERTICAL as f32 || speed > MAX_SPEED_VERTICAL as f32 {
             return Err(EncodeError::InvalidValue(
                 "speed_vertical",
@@ -401,25 +405,25 @@ impl Location {
             ));
         }
         self.data.SpeedVertical = speed;
-        Ok(())
+        Ok(self)
     }
 
     pub fn latitude(&self) -> f64 {
         self.data.Latitude
     }
 
-    pub fn with_latitude(&mut self, latitude: f64) -> Result<(), EncodeError> {
+    pub fn with_latitude(mut self, latitude: f64) -> Result<Self, EncodeError> {
         if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
             return Err(EncodeError::InvalidValue("latitude", latitude.to_string()));
         }
         self.data.Latitude = latitude;
-        Ok(())
+        Ok(self)
     }
 
     pub fn longitude(&self) -> f64 {
         self.data.Longitude
     }
-    pub fn with_longitude(&mut self, longitude: f64) -> Result<(), EncodeError> {
+    pub fn with_longitude(mut self, longitude: f64) -> Result<Self, EncodeError> {
         if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
             return Err(EncodeError::InvalidValue(
                 "longitude",
@@ -427,7 +431,7 @@ impl Location {
             ));
         }
         self.data.Longitude = longitude;
-        Ok(())
+        Ok(self)
     }
     pub fn altitude_barometric(&self) -> Option<f32> {
         if self.data.AltitudeBaro == sys::INV_ALT as f32 {
@@ -436,7 +440,7 @@ impl Location {
             Some(self.data.AltitudeBaro)
         }
     }
-    pub fn with_altitude_barometric(&mut self, altitude: f32) -> Result<(), EncodeError> {
+    pub fn with_altitude_barometric(mut self, altitude: f32) -> Result<Self, EncodeError> {
         if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
             return Err(EncodeError::InvalidValue(
                 "altitude_barometric",
@@ -444,7 +448,7 @@ impl Location {
             ));
         }
         self.data.AltitudeBaro = altitude;
-        Ok(())
+        Ok(self)
     }
     pub fn altitude_geodetic(&self) -> Option<f32> {
         if self.data.AltitudeGeo == sys::INV_ALT as f32 {
@@ -454,7 +458,7 @@ impl Location {
         }
     }
 
-    pub fn with_altitude_geodetic(&mut self, altitude: f32) -> Result<(), EncodeError> {
+    pub fn with_altitude_geodetic(mut self, altitude: f32) -> Result<Self, EncodeError> {
         if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
             return Err(EncodeError::InvalidValue(
                 "altitude_geodetic",
@@ -462,7 +466,7 @@ impl Location {
             ));
         }
         self.data.AltitudeGeo = altitude;
-        Ok(())
+        Ok(self)
     }
 
     pub fn height_type(&self) -> Result<HeightReference, DecodeError> {
@@ -471,8 +475,9 @@ impl Location {
             self.data.HeightType,
         ))
     }
-    pub fn with_height_type(&mut self, height_type: HeightReference) {
+    pub fn with_height_type(mut self, height_type: HeightReference) -> Self {
         self.data.HeightType = height_type as u32;
+        self
     }
 
     pub fn height(&self) -> Option<f32> {
@@ -482,12 +487,12 @@ impl Location {
             Some(self.data.Height)
         }
     }
-    pub fn with_height(&mut self, height: f32) -> Result<(), EncodeError> {
+    pub fn with_height(mut self, height: f32) -> Result<Self, EncodeError> {
         if height < MIN_ALTITUDE as f32 || height > MAX_ALTITUDE as f32 {
             return Err(EncodeError::InvalidValue("height", height.to_string()));
         }
         self.data.Height = height;
-        Ok(())
+        Ok(self)
     }
 
     pub fn horizontal_accuracy(&self) -> Result<HorizontalAccuracy, DecodeError> {
@@ -497,8 +502,9 @@ impl Location {
         ))
     }
 
-    pub fn with_horizontal_accuracy(&mut self, accuracy: HorizontalAccuracy) {
+    pub fn with_horizontal_accuracy(mut self, accuracy: HorizontalAccuracy) -> Self {
         self.data.HorizAccuracy = accuracy as u32;
+        self
     }
 
     pub fn vertical_accuracy(&self) -> Result<VerticalAccuracy, DecodeError> {
@@ -508,8 +514,9 @@ impl Location {
         ))
     }
 
-    pub fn with_vertical_accuracy(&mut self, accuracy: VerticalAccuracy) {
+    pub fn with_vertical_accuracy(mut self, accuracy: VerticalAccuracy) -> Self {
         self.data.VertAccuracy = accuracy as u32;
+        self
     }
 
     pub fn barometric_accuracy(&self) -> Result<VerticalAccuracy, DecodeError> {
@@ -519,8 +526,9 @@ impl Location {
         ))
     }
 
-    pub fn with_barometric_accuracy(&mut self, accuracy: VerticalAccuracy) {
+    pub fn with_barometric_accuracy(mut self, accuracy: VerticalAccuracy) -> Self {
         self.data.BaroAccuracy = accuracy as u32;
+        self
     }
 
     pub fn speed_accuracy(&self) -> Result<SpeedAccuracy, DecodeError> {
@@ -529,8 +537,9 @@ impl Location {
             self.data.SpeedAccuracy,
         ))
     }
-    pub fn with_speed_accuracy(&mut self, accuracy: SpeedAccuracy) {
+    pub fn with_speed_accuracy(mut self, accuracy: SpeedAccuracy) -> Self {
         self.data.SpeedAccuracy = accuracy as u32;
+        self
     }
     pub fn timestamp_accuracy(&self) -> Result<TimestampAccuracy, DecodeError> {
         TimestampAccuracy::from_u32(self.data.TSAccuracy).ok_or(DecodeError::EnumMappingError(
@@ -538,8 +547,9 @@ impl Location {
             self.data.TSAccuracy,
         ))
     }
-    pub fn with_timestamp_accuracy(&mut self, accuracy: TimestampAccuracy) {
+    pub fn with_timestamp_accuracy(mut self, accuracy: TimestampAccuracy) -> Self {
         self.data.TSAccuracy = accuracy as u32;
+        self
     }
 
     /// Returns the timestamp as a floating point number of seconds since the start of the hour
@@ -552,7 +562,7 @@ impl Location {
     }
 
     /// Set the timestamp as a floating point number of seconds since the start of the hour
-    pub fn with_timestamp(&mut self, timestamp: f32) -> Result<(), EncodeError> {
+    pub fn with_timestamp(mut self, timestamp: f32) -> Result<Self, EncodeError> {
         if timestamp < 0 as f32 || timestamp > sys::MAX_TIMESTAMP as f32 {
             return Err(EncodeError::InvalidValue(
                 "timestamp",
@@ -560,7 +570,7 @@ impl Location {
             ));
         }
         self.data.TimeStamp = timestamp;
-        Ok(())
+        Ok(self)
     }
 
     #[cfg(feature = "chrono")]
@@ -573,8 +583,9 @@ impl Location {
     }
 
     #[cfg(feature = "chrono")]
-    pub fn with_chrono_timestamp(&mut self, timestamp: chrono::DateTime<chrono::Utc>) {
+    pub fn with_chrono_timestamp(mut self, timestamp: chrono::DateTime<chrono::Utc>) -> Self {
         self.data.TimeStamp = encode_timestamp(timestamp);
+        self
     }
 }
 
@@ -699,8 +710,9 @@ impl UasData {
     }
 
     /// Set the Basic ID messages associated with this UAS data.
-    pub fn with_basic_id(&mut self, basic_id: Vec<BasicId>) {
+    pub fn with_basic_id(mut self, basic_id: Vec<BasicId>) -> Self {
         self.basic_id = basic_id;
+        self
     }
 
     /// Get the Location message associated with this UAS data, if available.
@@ -709,8 +721,9 @@ impl UasData {
     }
 
     /// Set the Location message associated with this UAS data.
-    pub fn with_location(&mut self, location: Option<Location>) {
+    pub fn with_location(mut self, location: Option<Location>) -> Self {
         self.location = location;
+        self
     }
 
     /// Get the Auth messages associated with this UAS data.
@@ -719,8 +732,9 @@ impl UasData {
     }
 
     /// Set the Auth messages associated with this UAS data.
-    pub fn with_auth(&mut self, auth: Vec<Auth>) {
+    pub fn with_auth(mut self, auth: Vec<Auth>) -> Self {
         self.auth = auth;
+        self
     }
 
     /// Get the Self ID message associated with this UAS data, if available.
@@ -728,8 +742,9 @@ impl UasData {
         self.self_id.as_ref()
     }
     /// Set the Self ID message associated with this UAS data.
-    pub fn with_self_id(&mut self, self_id: Option<SelfId>) {
+    pub fn with_self_id(mut self, self_id: Option<SelfId>) -> Self {
         self.self_id = self_id;
+        self
     }
 
     /// Get the System message associated with this UAS data, if available.
@@ -738,8 +753,9 @@ impl UasData {
     }
 
     /// Set the System message associated with this UAS data.
-    pub fn with_system(&mut self, system: Option<System>) {
+    pub fn with_system(mut self, system: Option<System>) -> Self {
         self.system = system;
+        self
     }
 
     /// Get the Operator ID message associated with this UAS data, if available.
@@ -748,8 +764,9 @@ impl UasData {
     }
 
     /// Set the Operator ID message associated with this UAS data.
-    pub fn with_operator_id(&mut self, operator_id: Option<OperatorId>) {
+    pub fn with_operator_id(mut self, operator_id: Option<OperatorId>) -> Self {
         self.operator_id = operator_id;
+        self
     }
 
     /// Decode UAS data from a buffer.
@@ -808,5 +825,94 @@ impl UasData {
                 data: data.OperatorID,
             }),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_id_with_setters_chain_and_keep_ownership() {
+        let uas_id = [1_i8; 21];
+
+        let basic_id = BasicId::new()
+            .with_ua_type(UaType::Aeroplane)
+            .with_id_type(IdType::SerialNumber)
+            .with_uas_id(uas_id);
+
+        assert_eq!(basic_id.ua_type().unwrap(), UaType::Aeroplane);
+        assert_eq!(basic_id.id_type().unwrap(), IdType::SerialNumber);
+        assert_eq!(*basic_id.uas_id(), uas_id);
+    }
+
+    #[test]
+    fn location_with_setters_support_fallible_chaining() -> Result<(), EncodeError> {
+        let location = Location::new()
+            .with_status(Status::Airborne)
+            .with_height_type(HeightReference::Ground)
+            .with_horizontal_accuracy(HorizontalAccuracy::LessThan10Meter)
+            .with_vertical_accuracy(VerticalAccuracy::LessThan10Meter)
+            .with_barometric_accuracy(VerticalAccuracy::LessThan25Meter)
+            .with_speed_accuracy(SpeedAccuracy::LessThan3MetersPerSecond)
+            .with_timestamp_accuracy(TimestampAccuracy::LessThan0_5Second)
+            .with_direction(123.0)?
+            .with_speed_horizontal(15.0)?
+            .with_speed_vertical(2.5)?
+            .with_latitude(48.2)?
+            .with_longitude(16.37)?
+            .with_altitude_barometric(300.0)?
+            .with_altitude_geodetic(305.0)?
+            .with_height(25.0)?
+            .with_timestamp(12.75)?;
+
+        assert_eq!(location.status().unwrap(), Status::Airborne);
+        assert_eq!(location.height_type().unwrap(), HeightReference::Ground);
+        assert_eq!(location.direction(), Some(123.0));
+        assert_eq!(location.speed_horizontal(), Some(15.0));
+        assert_eq!(location.speed_vertical(), Some(2.5));
+        assert_eq!(location.latitude(), 48.2);
+        assert_eq!(location.longitude(), 16.37);
+        assert_eq!(location.altitude_barometric(), Some(300.0));
+        assert_eq!(location.altitude_geodetic(), Some(305.0));
+        assert_eq!(location.height(), Some(25.0));
+        assert_eq!(location.timestamp(), Some(12.75));
+
+        Ok(())
+    }
+
+    #[test]
+    fn location_with_setters_return_validation_error_on_invalid_input() {
+        let result = Location::new().with_direction(MAX_DIRECTION as f32 + 1.0);
+
+        assert!(matches!(
+            result,
+            Err(EncodeError::InvalidValue("direction", _))
+        ));
+    }
+
+    #[test]
+    fn uas_data_with_setters_chain_and_store_values() {
+        let basic_id = BasicId::new();
+        let auth = Auth::new();
+        let self_id = SelfId::new();
+        let system = System::new();
+        let operator_id = OperatorId::new();
+        let location = Location::new().with_status(Status::Ground);
+
+        let uas_data = UasData::default()
+            .with_basic_id(vec![basic_id.clone()])
+            .with_auth(vec![auth.clone()])
+            .with_location(Some(location.clone()))
+            .with_self_id(Some(self_id.clone()))
+            .with_system(Some(system.clone()))
+            .with_operator_id(Some(operator_id.clone()));
+
+        assert_eq!(uas_data.basic_id().len(), 1);
+        assert_eq!(uas_data.auth().len(), 1);
+        assert_eq!(uas_data.location().cloned(), Some(location));
+        assert_eq!(uas_data.self_id().cloned(), Some(self_id));
+        assert_eq!(uas_data.system().cloned(), Some(system));
+        assert_eq!(uas_data.operator_id().cloned(), Some(operator_id));
     }
 }
