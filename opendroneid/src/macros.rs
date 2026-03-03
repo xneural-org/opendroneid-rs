@@ -1,4 +1,3 @@
-#[macro_export]
 macro_rules! impl_message {
     (
         $message_ty:ident,
@@ -126,3 +125,5 @@ macro_rules! impl_message {
         }
     };
 }
+
+pub(crate) use impl_message;

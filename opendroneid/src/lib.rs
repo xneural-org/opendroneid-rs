@@ -291,7 +291,7 @@ trait MessageInternal: Sized {
     ) -> Result<(), DecodeError>;
 }
 
-impl_message!(
+macros::impl_message!(
     BasicId,
     sys::ODID_BasicID_data,
     sys::ODID_BasicID_encoded,
@@ -331,7 +331,7 @@ impl BasicId {
     }
 }
 
-impl_message!(
+macros::impl_message!(
     Location,
     sys::ODID_Location_data,
     sys::ODID_Location_encoded,
@@ -648,7 +648,7 @@ fn encode_timestamp(value: chrono::DateTime<chrono::Utc>) -> f32 {
     (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0)
 }
 
-impl_message!(
+macros::impl_message!(
     Auth,
     sys::ODID_Auth_data,
     sys::ODID_Auth_encoded,
@@ -657,7 +657,7 @@ impl_message!(
     sys::decodeAuthMessage
 );
 
-impl_message!(
+macros::impl_message!(
     SelfId,
     sys::ODID_SelfID_data,
     sys::ODID_SelfID_encoded,
@@ -666,7 +666,7 @@ impl_message!(
     sys::decodeSelfIDMessage
 );
 
-impl_message!(
+macros::impl_message!(
     System,
     sys::ODID_System_data,
     sys::ODID_System_encoded,
@@ -675,7 +675,7 @@ impl_message!(
     sys::decodeSystemMessage
 );
 
-impl_message!(
+macros::impl_message!(
     OperatorId,
     sys::ODID_OperatorID_data,
     sys::ODID_OperatorID_encoded,
