@@ -625,3 +625,39 @@ fn encode_timestamp(value: chrono::DateTime<chrono::Utc>) -> f32 {
     let nanos = value.nanosecond();
     (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0)
 }
+
+impl_message!(
+    Auth,
+    sys::ODID_Auth_data,
+    sys::ODID_Auth_encoded,
+    sys::odid_initAuthData,
+    sys::encodeAuthMessage,
+    sys::decodeAuthMessage
+);
+
+impl_message!(
+    SelfId,
+    sys::ODID_SelfID_data,
+    sys::ODID_SelfID_encoded,
+    sys::odid_initSelfIDData,
+    sys::encodeSelfIDMessage,
+    sys::decodeSelfIDMessage
+);
+
+impl_message!(
+    System,
+    sys::ODID_System_data,
+    sys::ODID_System_encoded,
+    sys::odid_initSystemData,
+    sys::encodeSystemMessage,
+    sys::decodeSystemMessage
+);
+
+impl_message!(
+    OperatorId,
+    sys::ODID_OperatorID_data,
+    sys::ODID_OperatorID_encoded,
+    sys::odid_initOperatorIDData,
+    sys::encodeOperatorIDMessage,
+    sys::decodeOperatorIDMessage
+);
