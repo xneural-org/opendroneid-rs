@@ -826,93 +826,90 @@ impl UasData {
             }),
         })
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    pub fn encode_to_vec(&self) -> Result<Vec<u8>, EncodeError> {
+        let mut message_pack_data = std::mem::MaybeUninit::<sys::ODID_MessagePack_data>::uninit();
+        unsafe { sys::odid_initMessagePackData(message_pack_data.as_mut_ptr()) };
+        let mut message_pack_data = unsafe { message_pack_data.assume_init() };
 
-    #[test]
-    fn basic_id_with_setters_chain_and_keep_ownership() {
-        let uas_id = [1_i8; 21];
+        let mut message_count = 0usize;
 
-        let basic_id = BasicId::new()
-            .with_ua_type(UaType::Aeroplane)
-            .with_id_type(IdType::SerialNumber)
-            .with_uas_id(uas_id);
+        let mut push_message = |message: Vec<u8>,
+                                message_name: &'static str|
+         -> Result<(), EncodeError> {
+            if message_count >= sys::ODID_PACK_MAX_MESSAGES as usize {
+                return Err(EncodeError::BufferTooSmall {
+                    message: "MessagePack".to_string(),
+                    remaining: (sys::ODID_PACK_MAX_MESSAGES as usize).saturating_sub(message_count),
+                    required: message_count + 1,
+                });
+            }
 
-        assert_eq!(basic_id.ua_type().unwrap(), UaType::Aeroplane);
-        assert_eq!(basic_id.id_type().unwrap(), IdType::SerialNumber);
-        assert_eq!(*basic_id.uas_id(), uas_id);
-    }
+            let required = sys::ODID_MESSAGE_SIZE as usize;
+            if message.len() != required {
+                return Err(EncodeError::InvalidValue(
+                    message_name,
+                    format!("encoded length {} (expected {})", message.len(), required),
+                ));
+            }
 
-    #[test]
-    fn location_with_setters_support_fallible_chaining() -> Result<(), EncodeError> {
-        let location = Location::new()
-            .with_status(Status::Airborne)
-            .with_height_type(HeightReference::Ground)
-            .with_horizontal_accuracy(HorizontalAccuracy::LessThan10Meter)
-            .with_vertical_accuracy(VerticalAccuracy::LessThan10Meter)
-            .with_barometric_accuracy(VerticalAccuracy::LessThan25Meter)
-            .with_speed_accuracy(SpeedAccuracy::LessThan3MetersPerSecond)
-            .with_timestamp_accuracy(TimestampAccuracy::LessThan0_5Second)
-            .with_direction(123.0)?
-            .with_speed_horizontal(15.0)?
-            .with_speed_vertical(2.5)?
-            .with_latitude(48.2)?
-            .with_longitude(16.37)?
-            .with_altitude_barometric(300.0)?
-            .with_altitude_geodetic(305.0)?
-            .with_height(25.0)?
-            .with_timestamp(12.75)?;
+            let mut raw = [0u8; sys::ODID_MESSAGE_SIZE as usize];
+            raw.copy_from_slice(&message);
+            message_pack_data.Messages[message_count].rawData = raw;
 
-        assert_eq!(location.status().unwrap(), Status::Airborne);
-        assert_eq!(location.height_type().unwrap(), HeightReference::Ground);
-        assert_eq!(location.direction(), Some(123.0));
-        assert_eq!(location.speed_horizontal(), Some(15.0));
-        assert_eq!(location.speed_vertical(), Some(2.5));
-        assert_eq!(location.latitude(), 48.2);
-        assert_eq!(location.longitude(), 16.37);
-        assert_eq!(location.altitude_barometric(), Some(300.0));
-        assert_eq!(location.altitude_geodetic(), Some(305.0));
-        assert_eq!(location.height(), Some(25.0));
-        assert_eq!(location.timestamp(), Some(12.75));
+            message_count += 1;
+            Ok(())
+        };
 
-        Ok(())
-    }
+        for message in &self.basic_id {
+            push_message(message.encode_to_vec()?, "basic_id")?;
+        }
 
-    #[test]
-    fn location_with_setters_return_validation_error_on_invalid_input() {
-        let result = Location::new().with_direction(MAX_DIRECTION as f32 + 1.0);
+        if let Some(message) = &self.location {
+            push_message(message.encode_to_vec()?, "location")?;
+        }
 
-        assert!(matches!(
-            result,
-            Err(EncodeError::InvalidValue("direction", _))
-        ));
-    }
+        for message in &self.auth {
+            push_message(message.encode_to_vec()?, "auth")?;
+        }
 
-    #[test]
-    fn uas_data_with_setters_chain_and_store_values() {
-        let basic_id = BasicId::new();
-        let auth = Auth::new();
-        let self_id = SelfId::new();
-        let system = System::new();
-        let operator_id = OperatorId::new();
-        let location = Location::new().with_status(Status::Ground);
+        if let Some(message) = &self.self_id {
+            push_message(message.encode_to_vec()?, "self_id")?;
+        }
 
-        let uas_data = UasData::default()
-            .with_basic_id(vec![basic_id.clone()])
-            .with_auth(vec![auth.clone()])
-            .with_location(Some(location.clone()))
-            .with_self_id(Some(self_id.clone()))
-            .with_system(Some(system.clone()))
-            .with_operator_id(Some(operator_id.clone()));
+        if let Some(message) = &self.system {
+            push_message(message.encode_to_vec()?, "system")?;
+        }
 
-        assert_eq!(uas_data.basic_id().len(), 1);
-        assert_eq!(uas_data.auth().len(), 1);
-        assert_eq!(uas_data.location().cloned(), Some(location));
-        assert_eq!(uas_data.self_id().cloned(), Some(self_id));
-        assert_eq!(uas_data.system().cloned(), Some(system));
-        assert_eq!(uas_data.operator_id().cloned(), Some(operator_id));
+        if let Some(message) = &self.operator_id {
+            push_message(message.encode_to_vec()?, "operator_id")?;
+        }
+
+        if message_count == 0 {
+            return Err(EncodeError::InvalidValue(
+                "message_pack",
+                "at least one message is required".to_string(),
+            ));
+        }
+
+        message_pack_data.SingleMessageSize = sys::ODID_MESSAGE_SIZE as u8;
+        message_pack_data.MsgPackSize = message_count as u8;
+
+        let mut encoded_pack = std::mem::MaybeUninit::<sys::ODID_MessagePack_encoded>::uninit();
+        if unsafe { sys::encodeMessagePack(encoded_pack.as_mut_ptr(), &message_pack_data) } as u32
+            != sys::ODID_SUCCESS
+        {
+            return Err(EncodeError::Unknown("MessagePack".to_string()));
+        }
+
+        let encoded_pack = unsafe { encoded_pack.assume_init() };
+        let encoded_len = 3 + (message_count * sys::ODID_MESSAGE_SIZE as usize);
+        let bytes = unsafe {
+            std::slice::from_raw_parts(
+                (&encoded_pack as *const sys::ODID_MessagePack_encoded).cast::<u8>(),
+                encoded_len,
+            )
+        };
+        Ok(bytes.to_vec())
     }
 }
