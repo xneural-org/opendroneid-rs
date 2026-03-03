@@ -1,50 +1,16 @@
 use bytes::{Buf, BufMut};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use opendroneid_sys::{self as sys};
+use opendroneid_sys as sys;
 
+pub mod constants;
+pub mod error;
 mod macros;
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum EncodeError {
-    #[error("Can't encode {0} to wire format")]
-    Unknown(String),
-    #[error("Encode buffer too small for {message}: remaining {remaining}, required {required}")]
-    BufferTooSmall {
-        message: String,
-        remaining: usize,
-        required: usize,
-    },
-    #[error("Invalid value for {0}: {1}")]
-    InvalidValue(&'static str, String),
-}
+pub use constants::*;
+pub use error::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum DecodeError {
-    #[error("Can't decode {0} from wire format")]
-    Unknown(String),
-    #[error(
-        "Decode buffer too small for {message}: remaining {remaining}, expected at least {expected}"
-    )]
-    BufferTooSmall {
-        message: String,
-        remaining: usize,
-        expected: usize,
-    },
-    #[error("Enum mapping error: {0} has invalid value {1}")]
-    EnumMappingError(&'static str, u32),
-    #[error("Invalid value for {0}: {1}")]
-    InvalidValue(&'static str, String),
-}
-
-pub use sys::{
-    MAX_ALT as MAX_ALTITUDE, MAX_DIR as MAX_DIRECTION, MAX_LAT as MAX_LATITUDE,
-    MAX_LON as MAX_LONGITUDE, MAX_SPEED_H as MAX_SPEED_HORIZONTAL,
-    MAX_SPEED_V as MAX_SPEED_VERTICAL, MIN_ALT as MIN_ALTITUDE, MIN_DIR as MIN_DIRECTION,
-    MIN_LAT as MIN_LATITUDE, MIN_LON as MIN_LONGITUDE, MIN_SPEED_H as MIN_SPEED_HORIZONTAL,
-    MIN_SPEED_V as MIN_SPEED_VERTICAL,
-};
-
+/// Message IDs used in the Open Drone ID messages as defined in the underlying C library.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum MessageId {
