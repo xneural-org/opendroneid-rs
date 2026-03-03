@@ -55,7 +55,18 @@ pub enum MessageId {
     System = sys::ODID_messagetype_ODID_MESSAGETYPE_SYSTEM,
     OperatorId = sys::ODID_messagetype_ODID_MESSAGETYPE_OPERATOR_ID,
     MessagePack = sys::ODID_messagetype_ODID_MESSAGETYPE_PACKED,
-    Invalid = sys::ODID_messagetype_ODID_MESSAGETYPE_INVALID,
+}
+
+impl TryFrom<u8> for MessageId {
+    type Error = DecodeError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let t = unsafe { sys::decodeMessageType(value) };
+        if t == sys::ODID_messagetype_ODID_MESSAGETYPE_INVALID {
+            return Err(DecodeError::EnumMappingError("MessageId", value as u32));
+        }
+        MessageId::from_u32(t).ok_or(DecodeError::EnumMappingError("MessageId", t as u32))
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
@@ -661,3 +672,141 @@ impl_message!(
     sys::encodeOperatorIDMessage,
     sys::decodeOperatorIDMessage
 );
+
+/// UAS data is a collection of Open Drone ID messages that together represent the state and identity of a UAS.
+/// It may contain multiple Basic ID and Auth messages, but at most one of each of the other message types.
+#[derive(Debug, Clone)]
+pub struct UasData {
+    /// The Basic ID messages associated with this UAS data.
+    /// There may be multiple Basic ID messages, but at least one is required.
+    basic_id: Vec<BasicId>,
+    /// The Location message associated with this UAS data, if available.
+    location: Option<Location>,
+    /// The Auth messages associated with this UAS data.
+    auth: Vec<Auth>,
+    /// The Self ID message associated with this UAS data, if available.
+    self_id: Option<SelfId>,
+    /// The System message associated with this UAS data, if available.
+    system: Option<System>,
+    /// The Operator ID message associated with this UAS data, if available.
+    operator_id: Option<OperatorId>,
+}
+
+impl UasData {
+    /// Get the Basic ID messages associated with this UAS data.
+    pub fn basic_id(&self) -> &[BasicId] {
+        &self.basic_id
+    }
+
+    /// Set the Basic ID messages associated with this UAS data.
+    pub fn with_basic_id(&mut self, basic_id: Vec<BasicId>) {
+        self.basic_id = basic_id;
+    }
+
+    /// Get the Location message associated with this UAS data, if available.
+    pub fn location(&self) -> Option<&Location> {
+        self.location.as_ref()
+    }
+
+    /// Set the Location message associated with this UAS data.
+    pub fn with_location(&mut self, location: Option<Location>) {
+        self.location = location;
+    }
+
+    /// Get the Auth messages associated with this UAS data.
+    pub fn auth(&self) -> &[Auth] {
+        &self.auth
+    }
+
+    /// Set the Auth messages associated with this UAS data.
+    pub fn with_auth(&mut self, auth: Vec<Auth>) {
+        self.auth = auth;
+    }
+
+    /// Get the Self ID message associated with this UAS data, if available.
+    pub fn self_id(&self) -> Option<&SelfId> {
+        self.self_id.as_ref()
+    }
+    /// Set the Self ID message associated with this UAS data.
+    pub fn with_self_id(&mut self, self_id: Option<SelfId>) {
+        self.self_id = self_id;
+    }
+
+    /// Get the System message associated with this UAS data, if available.
+    pub fn system(&self) -> Option<&System> {
+        self.system.as_ref()
+    }
+
+    /// Set the System message associated with this UAS data.
+    pub fn with_system(&mut self, system: Option<System>) {
+        self.system = system;
+    }
+
+    /// Get the Operator ID message associated with this UAS data, if available.
+    pub fn operator_id(&self) -> Option<&OperatorId> {
+        self.operator_id.as_ref()
+    }
+
+    /// Set the Operator ID message associated with this UAS data.
+    pub fn with_operator_id(&mut self, operator_id: Option<OperatorId>) {
+        self.operator_id = operator_id;
+    }
+
+    /// Decode UAS data from a buffer.
+    pub fn decode(buf: impl Buf) -> Result<Self, DecodeError> {
+        let mut data = sys::ODID_UAS_Data::default();
+
+        let r = unsafe {
+            sys::decodeOpenDroneID(&mut data as *mut sys::ODID_UAS_Data, buf.chunk().as_ptr())
+        };
+
+        if r == sys::ODID_messagetype_ODID_MESSAGETYPE_INVALID {
+            return Err(DecodeError::EnumMappingError(
+                "MessageType",
+                buf.chunk()[0] as u32,
+            ));
+        }
+        let basic_id = data
+            .BasicIDValid
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, valid)| {
+                if *valid != 0 {
+                    Some(BasicId {
+                        data: data.BasicID[idx],
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let auth = data
+            .AuthValid
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, valid)| {
+                if *valid != 0 {
+                    Some(Auth {
+                        data: data.Auth[idx],
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(Self {
+            basic_id,
+            location: (data.LocationValid != 0).then_some(Location {
+                data: data.Location,
+            }),
+            auth,
+            self_id: (data.SelfIDValid != 0).then_some(SelfId { data: data.SelfID }),
+            system: (data.SystemValid != 0).then_some(System { data: data.System }),
+            operator_id: (data.OperatorIDValid != 0).then_some(OperatorId {
+                data: data.OperatorID,
+            }),
+        })
+    }
+}
