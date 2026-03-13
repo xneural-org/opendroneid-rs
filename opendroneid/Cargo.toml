@@ -5,6 +5,7 @@ edition = "2024"
 description = "Safe Rust wrapper for Open Drone ID encoding/decoding APIs"
 license = "Apache-2.0"
 repository = "https://github.com/xneural-org/opendroneid-rs"
+keywords = ["drone", "uav", "remote id", "opendroneid", "odid"]
 
 [dependencies]
 bytes = { version = "1", default-features = false }
