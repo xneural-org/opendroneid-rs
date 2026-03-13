@@ -35,9 +35,9 @@ macro_rules! impl_message {
             fn encode_message(
                 out_encoded: *mut Self::Encoded,
                 in_data: *const Self::Data,
-            ) -> Result<(), EncodeError> {
+            ) -> Result<(), Error> {
                 if unsafe { $encode(out_encoded, in_data) } as u32 != sys::ODID_SUCCESS {
-                    return Err(EncodeError::Unknown(stringify!($message_ty).to_string()));
+                    return Err(Error::Unknown { operation: "encode",  message: stringify!($message_ty).into() });
                 }
                 Ok(())
             }
@@ -45,9 +45,9 @@ macro_rules! impl_message {
             fn decode_message(
                 out_data: *mut Self::Data,
                 in_encoded: *const Self::Encoded,
-            ) -> Result<(), DecodeError> {
+            ) -> Result<(), Error> {
                 if unsafe { $decode(out_data, in_encoded) } as u32 != sys::ODID_SUCCESS {
-                    return Err(DecodeError::Unknown(stringify!($message_ty).to_string()));
+                    return Err(Error::Unknown { operation: "decode", message: stringify!($message_ty).into() });
                 }
                 Ok(())
             }
@@ -57,11 +57,12 @@ macro_rules! impl_message {
             type Data = $data_ty;
             type Encoded = $encoded_ty;
 
-            fn encode(&self, buf: &mut impl BufMut) -> Result<(), EncodeError> {
+            fn encode(&self, buf: &mut impl BufMut) -> Result<(), Error> {
                 let encoded_len = self.encoded_len();
                 if buf.remaining_mut() < encoded_len {
-                    return Err(EncodeError::BufferTooSmall {
-                        message: stringify!($message_ty).to_string(),
+                    return Err(Error::BufferTooSmall {
+                        operation: "encode",
+                        message: stringify!($message_ty).into(),
                         remaining: buf.remaining_mut(),
                         required: encoded_len,
                     });
@@ -80,14 +81,15 @@ macro_rules! impl_message {
                 Ok(())
             }
 
-            fn decode(buf: impl Buf) -> Result<Self, DecodeError> {
+            fn decode(buf: impl Buf) -> Result<Self, Error> {
                 let mut buf = buf;
                 let encoded_len = std::mem::size_of::<Self::Encoded>();
                 if buf.remaining() < encoded_len {
-                    return Err(DecodeError::BufferTooSmall {
-                        message: stringify!($message_ty).to_string(),
+                    return Err(Error::BufferTooSmall {
+                        operation: "decode",
+                        message: stringify!($message_ty).into(),
                         remaining: buf.remaining(),
-                        expected: encoded_len,
+                        required: encoded_len,
                     });
                 }
 

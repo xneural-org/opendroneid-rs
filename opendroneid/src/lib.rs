@@ -31,14 +31,20 @@ pub enum MessageId {
 }
 
 impl TryFrom<u8> for MessageId {
-    type Error = DecodeError;
+    type Error = Error;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         let t = unsafe { sys::decodeMessageType(value) };
         if t == sys::ODID_messagetype_ODID_MESSAGETYPE_INVALID {
-            return Err(DecodeError::EnumMappingError("MessageId", value as u32));
+            return Err(Error::EnumMappingError {
+                field: "MessageId",
+                value: value as u32,
+            });
         }
-        MessageId::from_u32(t).ok_or(DecodeError::EnumMappingError("MessageId", t as u32))
+        MessageId::from_u32(t).ok_or(Error::EnumMappingError {
+            field: "MessageId",
+            value: t as u32,
+        })
     }
 }
 
@@ -271,17 +277,17 @@ pub trait Message: Sized {
     /// Encodes the message to a buffer.
     ///
     /// An error will be returned if the buffer does not have sufficient capacity.
-    fn encode(&self, buf: &mut impl BufMut) -> Result<(), EncodeError>;
+    fn encode(&self, buf: &mut impl BufMut) -> Result<(), Error>;
 
     /// Encodes the message to a newly allocated buffer.
-    fn encode_to_vec(&self) -> Result<Vec<u8>, EncodeError> {
+    fn encode_to_vec(&self) -> Result<Vec<u8>, Error> {
         let mut buf = Vec::with_capacity(self.encoded_len());
         self.encode(&mut buf)?;
         Ok(buf)
     }
 
     /// Decodes the message from a buffer.
-    fn decode(buf: impl Buf) -> Result<Self, DecodeError>;
+    fn decode(buf: impl Buf) -> Result<Self, Error>;
 }
 
 /// Internal trait for encoding and decoding messages using the underlying C library functions.
@@ -298,13 +304,13 @@ trait MessageInternal: Sized {
     fn encode_message(
         out_encoded: *mut Self::Encoded,
         in_data: *const Self::Data,
-    ) -> Result<(), EncodeError>;
+    ) -> Result<(), Error>;
 
     /// Decodes the message data from the encoded format using the underlying C library function.
     fn decode_message(
         out_data: *mut Self::Data,
         in_encoded: *const Self::Encoded,
-    ) -> Result<(), DecodeError>;
+    ) -> Result<(), Error>;
 }
 
 macros::impl_message!(
@@ -331,9 +337,11 @@ macros::impl_message!(
 
 impl BasicId {
     /// Returns the UA type of the message, or an error if the value is invalid.
-    pub fn ua_type(&self) -> Result<UaType, DecodeError> {
-        UaType::from_u32(self.data.UAType)
-            .ok_or(DecodeError::EnumMappingError("UAType", self.data.UAType))
+    pub fn ua_type(&self) -> Result<UaType, Error> {
+        UaType::from_u32(self.data.UAType).ok_or(Error::EnumMappingError {
+            field: "UAType",
+            value: self.data.UAType,
+        })
     }
     /// Sets the UA type of the message.
     pub fn with_ua_type(mut self, ua_type: UaType) -> Self {
@@ -341,9 +349,11 @@ impl BasicId {
         self
     }
     /// Returns the ID type of the message, or an error if the value is invalid.
-    pub fn id_type(&self) -> Result<IdType, DecodeError> {
-        IdType::from_u32(self.data.IDType)
-            .ok_or(DecodeError::EnumMappingError("IDType", self.data.IDType))
+    pub fn id_type(&self) -> Result<IdType, Error> {
+        IdType::from_u32(self.data.IDType).ok_or(Error::EnumMappingError {
+            field: "IDType",
+            value: self.data.IDType,
+        })
     }
     /// Sets the ID type of the message.
     pub fn with_id_type(mut self, id_type: IdType) -> Self {
@@ -389,9 +399,11 @@ macros::impl_message!(
 
 impl Location {
     /// Returns the status of the message, or an error if the value is invalid.
-    pub fn status(&self) -> Result<Status, DecodeError> {
-        Status::from_u32(self.data.Status)
-            .ok_or(DecodeError::EnumMappingError("Status", self.data.Status))
+    pub fn status(&self) -> Result<Status, Error> {
+        Status::from_u32(self.data.Status).ok_or(Error::EnumMappingError {
+            field: "Status",
+            value: self.data.Status,
+        })
     }
     /// Sets the status of the message.
     pub fn with_status(mut self, status: Status) -> Self {
@@ -407,12 +419,12 @@ impl Location {
         }
     }
     /// Sets the direction of the UA in degrees from north.
-    pub fn with_direction(mut self, direction: f32) -> Result<Self, EncodeError> {
+    pub fn with_direction(mut self, direction: f32) -> Result<Self, Error> {
         if direction < MIN_DIRECTION as f32 || direction > MAX_DIRECTION as f32 {
-            return Err(EncodeError::InvalidValue(
-                "direction",
-                direction.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "direction",
+                value: direction.to_string(),
+            });
         }
         self.data.Direction = direction;
         Ok(self)
@@ -427,12 +439,12 @@ impl Location {
     }
     /// Sets the horizontal speed of the UA in m/s.
     /// Returns an error if the speed is out of the valid range defined by the protocol.
-    pub fn with_speed_horizontal(mut self, speed: f32) -> Result<Self, EncodeError> {
+    pub fn with_speed_horizontal(mut self, speed: f32) -> Result<Self, Error> {
         if speed < MIN_SPEED_HORIZONTAL as f32 || speed > MAX_SPEED_HORIZONTAL as f32 {
-            return Err(EncodeError::InvalidValue(
-                "speed_horizontal",
-                speed.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "speed_horizontal",
+                value: speed.to_string(),
+            });
         }
         self.data.SpeedHorizontal = speed;
         Ok(self)
@@ -446,12 +458,12 @@ impl Location {
         }
     }
     /// Sets the vertical speed of the UA in m/s.
-    pub fn with_speed_vertical(mut self, speed: f32) -> Result<Self, EncodeError> {
+    pub fn with_speed_vertical(mut self, speed: f32) -> Result<Self, Error> {
         if speed < MIN_SPEED_VERTICAL as f32 || speed > MAX_SPEED_VERTICAL as f32 {
-            return Err(EncodeError::InvalidValue(
-                "speed_vertical",
-                speed.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "speed_vertical",
+                value: speed.to_string(),
+            });
         }
         self.data.SpeedVertical = speed;
         Ok(self)
@@ -462,9 +474,12 @@ impl Location {
     }
     /// Sets the latitude of the UA in degrees.
     /// Returns an error if the latitude is out of the valid range defined by the protocol.
-    pub fn with_latitude(mut self, latitude: f64) -> Result<Self, EncodeError> {
+    pub fn with_latitude(mut self, latitude: f64) -> Result<Self, Error> {
         if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
-            return Err(EncodeError::InvalidValue("latitude", latitude.to_string()));
+            return Err(Error::InvalidValue {
+                field: "latitude",
+                value: latitude.to_string(),
+            });
         }
         self.data.Latitude = latitude;
         Ok(self)
@@ -475,12 +490,12 @@ impl Location {
     }
     /// Sets the longitude of the UA in degrees.
     /// Returns an error if the longitude is out of the valid range defined by the protocol.
-    pub fn with_longitude(mut self, longitude: f64) -> Result<Self, EncodeError> {
+    pub fn with_longitude(mut self, longitude: f64) -> Result<Self, Error> {
         if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
-            return Err(EncodeError::InvalidValue(
-                "longitude",
-                longitude.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "longitude",
+                value: longitude.to_string(),
+            });
         }
         self.data.Longitude = longitude;
         Ok(self)
@@ -498,12 +513,12 @@ impl Location {
     }
     /// Sets the barometric altitude of the UA in meters.
     /// Returns an error if the altitude is out of the valid range defined by the protocol.
-    pub fn with_altitude_barometric(mut self, altitude: f32) -> Result<Self, EncodeError> {
+    pub fn with_altitude_barometric(mut self, altitude: f32) -> Result<Self, Error> {
         if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
-            return Err(EncodeError::InvalidValue(
-                "altitude_barometric",
-                altitude.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "altitude_barometric",
+                value: altitude.to_string(),
+            });
         }
         self.data.AltitudeBaro = altitude;
         Ok(self)
@@ -522,22 +537,22 @@ impl Location {
     /// Returns an error if the altitude is out of the valid range defined by the protocol.
     ///
     /// The geodetic altitude is the distance above or below the surface of the WGS-84 ellipsoid.
-    pub fn with_altitude_geodetic(mut self, altitude: f32) -> Result<Self, EncodeError> {
+    pub fn with_altitude_geodetic(mut self, altitude: f32) -> Result<Self, Error> {
         if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
-            return Err(EncodeError::InvalidValue(
-                "altitude_geodetic",
-                altitude.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "altitude_geodetic",
+                value: altitude.to_string(),
+            });
         }
         self.data.AltitudeGeo = altitude;
         Ok(self)
     }
     /// Returns the height reference of the UA, or an error if the value is invalid.
-    pub fn height_type(&self) -> Result<HeightReference, DecodeError> {
-        HeightReference::from_u32(self.data.HeightType).ok_or(DecodeError::EnumMappingError(
-            "HeightType",
-            self.data.HeightType,
-        ))
+    pub fn height_type(&self) -> Result<HeightReference, Error> {
+        HeightReference::from_u32(self.data.HeightType).ok_or(Error::EnumMappingError {
+            field: "HeightType",
+            value: self.data.HeightType,
+        })
     }
     /// Sets the height reference of the UA.
     pub fn with_height_type(mut self, height_type: HeightReference) -> Self {
@@ -554,19 +569,22 @@ impl Location {
     }
     /// Sets the height of the UA in meters.
     /// Returns an error if the height is out of the valid range defined by the protocol.
-    pub fn with_height(mut self, height: f32) -> Result<Self, EncodeError> {
+    pub fn with_height(mut self, height: f32) -> Result<Self, Error> {
         if height < MIN_ALTITUDE as f32 || height > MAX_ALTITUDE as f32 {
-            return Err(EncodeError::InvalidValue("height", height.to_string()));
+            return Err(Error::InvalidValue {
+                field: "height",
+                value: height.to_string(),
+            });
         }
         self.data.Height = height;
         Ok(self)
     }
     /// Returns the horizontal accuracy of the location information, or an error if the value is invalid.
-    pub fn horizontal_accuracy(&self) -> Result<HorizontalAccuracy, DecodeError> {
-        HorizontalAccuracy::from_u32(self.data.HorizAccuracy).ok_or(DecodeError::EnumMappingError(
-            "HorizontalAccuracy",
-            self.data.HorizAccuracy,
-        ))
+    pub fn horizontal_accuracy(&self) -> Result<HorizontalAccuracy, Error> {
+        HorizontalAccuracy::from_u32(self.data.HorizAccuracy).ok_or(Error::EnumMappingError {
+            field: "HorizontalAccuracy",
+            value: self.data.HorizAccuracy,
+        })
     }
     /// Sets the horizontal accuracy of the location information.
     pub fn with_horizontal_accuracy(mut self, accuracy: HorizontalAccuracy) -> Self {
@@ -574,11 +592,11 @@ impl Location {
         self
     }
     /// Returns the vertical accuracy of the location information, or an error if the value is invalid.
-    pub fn vertical_accuracy(&self) -> Result<VerticalAccuracy, DecodeError> {
-        VerticalAccuracy::from_u32(self.data.VertAccuracy).ok_or(DecodeError::EnumMappingError(
-            "VerticalAccuracy",
-            self.data.VertAccuracy,
-        ))
+    pub fn vertical_accuracy(&self) -> Result<VerticalAccuracy, Error> {
+        VerticalAccuracy::from_u32(self.data.VertAccuracy).ok_or(Error::EnumMappingError {
+            field: "VerticalAccuracy",
+            value: self.data.VertAccuracy,
+        })
     }
     /// Sets the vertical accuracy of the location information.
     pub fn with_vertical_accuracy(mut self, accuracy: VerticalAccuracy) -> Self {
@@ -586,11 +604,11 @@ impl Location {
         self
     }
     /// Returns the barometric accuracy of the location information, or an error if the value is invalid.
-    pub fn barometric_accuracy(&self) -> Result<VerticalAccuracy, DecodeError> {
-        VerticalAccuracy::from_u32(self.data.BaroAccuracy).ok_or(DecodeError::EnumMappingError(
-            "BarometricAccuracy",
-            self.data.BaroAccuracy,
-        ))
+    pub fn barometric_accuracy(&self) -> Result<VerticalAccuracy, Error> {
+        VerticalAccuracy::from_u32(self.data.BaroAccuracy).ok_or(Error::EnumMappingError {
+            field: "BarometricAccuracy",
+            value: self.data.BaroAccuracy,
+        })
     }
     /// Sets the barometric accuracy of the location information.
     pub fn with_barometric_accuracy(mut self, accuracy: VerticalAccuracy) -> Self {
@@ -598,11 +616,11 @@ impl Location {
         self
     }
     /// Returns the speed accuracy of the location information, or an error if the value is invalid.
-    pub fn speed_accuracy(&self) -> Result<SpeedAccuracy, DecodeError> {
-        SpeedAccuracy::from_u32(self.data.SpeedAccuracy).ok_or(DecodeError::EnumMappingError(
-            "SpeedAccuracy",
-            self.data.SpeedAccuracy,
-        ))
+    pub fn speed_accuracy(&self) -> Result<SpeedAccuracy, Error> {
+        SpeedAccuracy::from_u32(self.data.SpeedAccuracy).ok_or(Error::EnumMappingError {
+            field: "SpeedAccuracy",
+            value: self.data.SpeedAccuracy,
+        })
     }
     /// Sets the speed accuracy of the location information.
     pub fn with_speed_accuracy(mut self, accuracy: SpeedAccuracy) -> Self {
@@ -610,11 +628,11 @@ impl Location {
         self
     }
     /// Returns the timestamp accuracy of the location information, or an error if the value is invalid.
-    pub fn timestamp_accuracy(&self) -> Result<TimestampAccuracy, DecodeError> {
-        TimestampAccuracy::from_u32(self.data.TSAccuracy).ok_or(DecodeError::EnumMappingError(
-            "TimestampAccuracy",
-            self.data.TSAccuracy,
-        ))
+    pub fn timestamp_accuracy(&self) -> Result<TimestampAccuracy, Error> {
+        TimestampAccuracy::from_u32(self.data.TSAccuracy).ok_or(Error::EnumMappingError {
+            field: "TimestampAccuracy",
+            value: self.data.TSAccuracy,
+        })
     }
     /// Sets the timestamp accuracy of the location information.
     pub fn with_timestamp_accuracy(mut self, accuracy: TimestampAccuracy) -> Self {
@@ -633,12 +651,12 @@ impl Location {
 
     /// Sets the timestamp as a floating point number of seconds since the start of the hour.
     /// Returns an error if the timestamp is out of the valid range defined by the protocol.
-    pub fn with_timestamp(mut self, timestamp: f32) -> Result<Self, EncodeError> {
+    pub fn with_timestamp(mut self, timestamp: f32) -> Result<Self, Error> {
         if timestamp < 0 as f32 || timestamp > sys::MAX_TIMESTAMP as f32 {
-            return Err(EncodeError::InvalidValue(
-                "timestamp",
-                timestamp.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "timestamp",
+                value: timestamp.to_string(),
+            });
         }
         self.data.TimeStamp = timestamp;
         Ok(self)
@@ -653,7 +671,7 @@ impl Location {
     /// </div>
     ///
     #[cfg(feature = "chrono")]
-    pub fn chrono_timestamp(&self) -> Option<Result<chrono::DateTime<chrono::Utc>, DecodeError>> {
+    pub fn chrono_timestamp(&self) -> Option<Result<chrono::DateTime<chrono::Utc>, Error>> {
         if self.data.TimeStamp == sys::INV_TIMESTAMP as f32 {
             None
         } else {
@@ -669,26 +687,26 @@ impl Location {
 }
 
 #[cfg(feature = "chrono")]
-fn decode_timestamp(value: f32) -> Result<chrono::DateTime<chrono::Utc>, DecodeError> {
+fn decode_timestamp(value: f32) -> Result<chrono::DateTime<chrono::Utc>, Error> {
     use chrono::Timelike;
     let now = chrono::Utc::now();
 
     let this_hour_start = now
         .with_minute(0)
-        .ok_or(DecodeError::InvalidValue(
-            "timestamp.minute",
-            "0".to_string(),
-        ))?
+        .ok_or(Error::InvalidValue {
+            field: "timestamp.minute",
+            value: "0".to_string(),
+        })?
         .with_second(0)
-        .ok_or(DecodeError::InvalidValue(
-            "timestamp.second",
-            "0".to_string(),
-        ))?
+        .ok_or(Error::InvalidValue {
+            field: "timestamp.second",
+            value: "0".to_string(),
+        })?
         .with_nanosecond(0)
-        .ok_or(DecodeError::InvalidValue(
-            "timestamp.nanosecond",
-            "0".to_string(),
-        ))?;
+        .ok_or(Error::InvalidValue {
+            field: "timestamp.nanosecond",
+            value: "0".to_string(),
+        })?;
     let mins = now.minute();
     let secs = now.second();
     let nanos = now.nanosecond();
@@ -702,20 +720,20 @@ fn decode_timestamp(value: f32) -> Result<chrono::DateTime<chrono::Utc>, DecodeE
 
     base_hour
         .with_minute((value / 60.0) as u32)
-        .ok_or(DecodeError::InvalidValue(
-            "timestamp.minute",
-            value.to_string(),
-        ))?
+        .ok_or(Error::InvalidValue {
+            field: "timestamp.minute",
+            value: value.to_string(),
+        })?
         .with_second((value % 60.0) as u32)
-        .ok_or(DecodeError::InvalidValue(
-            "timestamp.second",
-            value.to_string(),
-        ))?
+        .ok_or(Error::InvalidValue {
+            field: "timestamp.second",
+            value: value.to_string(),
+        })?
         .with_nanosecond(((value % 1.0) * 1_000_000_000.0) as u32)
-        .ok_or(DecodeError::InvalidValue(
-            "timestamp.nanosecond",
-            value.to_string(),
-        ))
+        .ok_or(Error::InvalidValue {
+            field: "timestamp.nanosecond",
+            value: value.to_string(),
+        })
 }
 
 #[cfg(feature = "chrono")]
@@ -758,22 +776,22 @@ impl Auth {
         self.data.DataPage
     }
     /// Sets the authentication data page index.
-    pub fn with_data_page(mut self, data_page: u8) -> Result<Self, EncodeError> {
+    pub fn with_data_page(mut self, data_page: u8) -> Result<Self, Error> {
         if data_page >= sys::ODID_AUTH_MAX_PAGES as u8 {
-            return Err(EncodeError::InvalidValue(
-                "data_page",
-                data_page.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "data_page",
+                value: data_page.to_string(),
+            });
         }
         self.data.DataPage = data_page;
         Ok(self)
     }
     /// Returns the authentication type of the message, or an error if the value is invalid.
-    pub fn auth_type(&self) -> Result<AuthenticationType, DecodeError> {
-        AuthenticationType::from_u32(self.data.AuthType).ok_or(DecodeError::EnumMappingError(
-            "AuthType",
-            self.data.AuthType,
-        ))
+    pub fn auth_type(&self) -> Result<AuthenticationType, Error> {
+        AuthenticationType::from_u32(self.data.AuthType).ok_or(Error::EnumMappingError {
+            field: "AuthType",
+            value: self.data.AuthType,
+        })
     }
 
     /// Sets the authentication type of the message.
@@ -788,22 +806,22 @@ impl Auth {
     }
 
     /// Sets the last authentication page index.
-    pub fn with_last_page_index(mut self, last_page_index: u8) -> Result<Self, EncodeError> {
+    pub fn with_last_page_index(mut self, last_page_index: u8) -> Result<Self, Error> {
         if last_page_index >= sys::ODID_AUTH_MAX_PAGES as u8 {
-            return Err(EncodeError::InvalidValue(
-                "last_page_index",
-                last_page_index.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "last_page_index",
+                value: last_page_index.to_string(),
+            });
         }
 
         if self.data.DataPage == 0 {
             let max_len = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE
                 + last_page_index as u32 * sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE;
             if self.data.Length as u32 > max_len {
-                return Err(EncodeError::InvalidValue(
-                    "length",
-                    self.data.Length.to_string(),
-                ));
+                return Err(Error::InvalidValue {
+                    field: "length",
+                    value: self.data.Length.to_string(),
+                });
             }
         }
 
@@ -817,12 +835,15 @@ impl Auth {
     }
 
     /// Sets the authentication data length in bytes.
-    pub fn with_length(mut self, length: u8) -> Result<Self, EncodeError> {
+    pub fn with_length(mut self, length: u8) -> Result<Self, Error> {
         if self.data.DataPage == 0 {
             let max_len = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE
                 + self.data.LastPageIndex as u32 * sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE;
             if length as u32 > max_len {
-                return Err(EncodeError::InvalidValue("length", length.to_string()));
+                return Err(Error::InvalidValue {
+                    field: "length",
+                    value: length.to_string(),
+                });
             }
         }
 
@@ -897,11 +918,11 @@ macros::impl_message!(
 
 impl SelfId {
     /// Returns the description type of the message, or an error if the value is invalid.
-    pub fn desc_type(&self) -> Result<DescriptionType, DecodeError> {
-        DescriptionType::from_u32(self.data.DescType).ok_or(DecodeError::EnumMappingError(
-            "DescType",
-            self.data.DescType,
-        ))
+    pub fn desc_type(&self) -> Result<DescriptionType, Error> {
+        DescriptionType::from_u32(self.data.DescType).ok_or(Error::EnumMappingError {
+            field: "DescType",
+            value: self.data.DescType,
+        })
     }
 
     /// Sets the description type of the message.
@@ -936,9 +957,12 @@ macros::impl_message!(
 
 impl System {
     /// Returns the operator location type of the message, or an error if the value is invalid.
-    pub fn operator_location_type(&self) -> Result<OperatorLocationType, DecodeError> {
+    pub fn operator_location_type(&self) -> Result<OperatorLocationType, Error> {
         OperatorLocationType::from_u32(self.data.OperatorLocationType).ok_or(
-            DecodeError::EnumMappingError("OperatorLocationType", self.data.OperatorLocationType),
+            Error::EnumMappingError {
+                field: "OperatorLocationType",
+                value: self.data.OperatorLocationType,
+            },
         )
     }
 
@@ -949,10 +973,11 @@ impl System {
     }
 
     /// Returns the classification type of the message, or an error if the value is invalid.
-    pub fn classification_type(&self) -> Result<ClassificationType, DecodeError> {
-        ClassificationType::from_u32(self.data.ClassificationType).ok_or(
-            DecodeError::EnumMappingError("ClassificationType", self.data.ClassificationType),
-        )
+    pub fn classification_type(&self) -> Result<ClassificationType, Error> {
+        ClassificationType::from_u32(self.data.ClassificationType).ok_or(Error::EnumMappingError {
+            field: "ClassificationType",
+            value: self.data.ClassificationType,
+        })
     }
 
     /// Sets the classification type of the message.
@@ -967,12 +992,12 @@ impl System {
     }
 
     /// Sets the operator latitude in degrees.
-    pub fn with_operator_latitude(mut self, latitude: f64) -> Result<Self, EncodeError> {
+    pub fn with_operator_latitude(mut self, latitude: f64) -> Result<Self, Error> {
         if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
-            return Err(EncodeError::InvalidValue(
-                "operator_latitude",
-                latitude.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "operator_latitude",
+                value: latitude.to_string(),
+            });
         }
         self.data.OperatorLatitude = latitude;
         Ok(self)
@@ -984,12 +1009,12 @@ impl System {
     }
 
     /// Sets the operator longitude in degrees.
-    pub fn with_operator_longitude(mut self, longitude: f64) -> Result<Self, EncodeError> {
+    pub fn with_operator_longitude(mut self, longitude: f64) -> Result<Self, Error> {
         if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
-            return Err(EncodeError::InvalidValue(
-                "operator_longitude",
-                longitude.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "operator_longitude",
+                value: longitude.to_string(),
+            });
         }
         self.data.OperatorLongitude = longitude;
         Ok(self)
@@ -1012,12 +1037,12 @@ impl System {
     }
 
     /// Sets the area radius in meters.
-    pub fn with_area_radius(mut self, area_radius: u16) -> Result<Self, EncodeError> {
+    pub fn with_area_radius(mut self, area_radius: u16) -> Result<Self, Error> {
         if area_radius > sys::MAX_AREA_RADIUS as u16 {
-            return Err(EncodeError::InvalidValue(
-                "area_radius",
-                area_radius.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "area_radius",
+                value: area_radius.to_string(),
+            });
         }
         self.data.AreaRadius = area_radius;
         Ok(self)
@@ -1029,12 +1054,12 @@ impl System {
     }
 
     /// Sets the area ceiling altitude in meters.
-    pub fn with_area_ceiling(mut self, area_ceiling: f32) -> Result<Self, EncodeError> {
+    pub fn with_area_ceiling(mut self, area_ceiling: f32) -> Result<Self, Error> {
         if area_ceiling < MIN_ALTITUDE as f32 || area_ceiling > MAX_ALTITUDE as f32 {
-            return Err(EncodeError::InvalidValue(
-                "area_ceiling",
-                area_ceiling.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "area_ceiling",
+                value: area_ceiling.to_string(),
+            });
         }
         self.data.AreaCeiling = area_ceiling;
         Ok(self)
@@ -1046,23 +1071,23 @@ impl System {
     }
 
     /// Sets the area floor altitude in meters.
-    pub fn with_area_floor(mut self, area_floor: f32) -> Result<Self, EncodeError> {
+    pub fn with_area_floor(mut self, area_floor: f32) -> Result<Self, Error> {
         if area_floor < MIN_ALTITUDE as f32 || area_floor > MAX_ALTITUDE as f32 {
-            return Err(EncodeError::InvalidValue(
-                "area_floor",
-                area_floor.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "area_floor",
+                value: area_floor.to_string(),
+            });
         }
         self.data.AreaFloor = area_floor;
         Ok(self)
     }
 
     /// Returns the EU category of the message, or an error if the value is invalid.
-    pub fn category(&self) -> Result<Category, DecodeError> {
-        Category::from_u32(self.data.CategoryEU).ok_or(DecodeError::EnumMappingError(
-            "CategoryEU",
-            self.data.CategoryEU,
-        ))
+    pub fn category(&self) -> Result<Category, Error> {
+        Category::from_u32(self.data.CategoryEU).ok_or(Error::EnumMappingError {
+            field: "CategoryEU",
+            value: self.data.CategoryEU,
+        })
     }
 
     /// Sets the EU category of the message.
@@ -1072,9 +1097,11 @@ impl System {
     }
 
     /// Returns the EU class of the message, or an error if the value is invalid.
-    pub fn class_eu(&self) -> Result<ClassEu, DecodeError> {
-        ClassEu::from_u32(self.data.ClassEU)
-            .ok_or(DecodeError::EnumMappingError("ClassEU", self.data.ClassEU))
+    pub fn class_eu(&self) -> Result<ClassEu, Error> {
+        ClassEu::from_u32(self.data.ClassEU).ok_or(Error::EnumMappingError {
+            field: "ClassEU",
+            value: self.data.ClassEU,
+        })
     }
 
     /// Sets the EU class of the message.
@@ -1089,12 +1116,12 @@ impl System {
     }
 
     /// Sets the operator geodetic altitude in meters.
-    pub fn with_operator_altitude_geo(mut self, altitude: f32) -> Result<Self, EncodeError> {
+    pub fn with_operator_altitude_geo(mut self, altitude: f32) -> Result<Self, Error> {
         if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
-            return Err(EncodeError::InvalidValue(
-                "operator_altitude_geo",
-                altitude.to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "operator_altitude_geo",
+                value: altitude.to_string(),
+            });
         }
         self.data.OperatorAltitudeGeo = altitude;
         Ok(self)
@@ -1135,11 +1162,11 @@ macros::impl_message!(
 
 impl OperatorId {
     /// Returns the operator ID type of the message, or an error if the value is invalid.
-    pub fn operator_id_type(&self) -> Result<OperatorIdType, DecodeError> {
-        OperatorIdType::from_u32(self.data.OperatorIdType).ok_or(DecodeError::EnumMappingError(
-            "OperatorIdType",
-            self.data.OperatorIdType,
-        ))
+    pub fn operator_id_type(&self) -> Result<OperatorIdType, Error> {
+        OperatorIdType::from_u32(self.data.OperatorIdType).ok_or(Error::EnumMappingError {
+            field: "OperatorIdType",
+            value: self.data.OperatorIdType,
+        })
     }
 
     /// Sets the operator ID type of the message.
@@ -1246,7 +1273,7 @@ impl UasData {
     }
 
     /// Decode UAS data from a buffer.
-    pub fn decode(buf: impl Buf) -> Result<Self, DecodeError> {
+    pub fn decode(buf: impl Buf) -> Result<Self, Error> {
         let mut data = sys::ODID_UAS_Data::default();
 
         let r = unsafe {
@@ -1254,10 +1281,10 @@ impl UasData {
         };
 
         if r == sys::ODID_messagetype_ODID_MESSAGETYPE_INVALID {
-            return Err(DecodeError::EnumMappingError(
-                "MessageType",
-                buf.chunk()[0] as u32,
-            ));
+            return Err(Error::EnumMappingError {
+                field: "MessageType",
+                value: buf.chunk()[0] as u32,
+            });
         }
         let basic_id = data
             .BasicIDValid
@@ -1303,7 +1330,7 @@ impl UasData {
         })
     }
 
-    pub fn encode_to_vec(&self) -> Result<Vec<u8>, EncodeError> {
+    pub fn encode_to_vec(&self) -> Result<Vec<u8>, Error> {
         let mut message_pack_data = std::mem::MaybeUninit::<sys::ODID_MessagePack_data>::uninit();
         unsafe { sys::odid_initMessagePackData(message_pack_data.as_mut_ptr()) };
         let mut message_pack_data = unsafe { message_pack_data.assume_init() };
@@ -1312,10 +1339,11 @@ impl UasData {
 
         let mut push_message = |message: Vec<u8>,
                                 message_name: &'static str|
-         -> Result<(), EncodeError> {
+         -> Result<(), Error> {
             if message_count >= sys::ODID_PACK_MAX_MESSAGES as usize {
-                return Err(EncodeError::BufferTooSmall {
-                    message: "MessagePack".to_string(),
+                return Err(Error::BufferTooSmall {
+                    operation: "encode",
+                    message: "MessagePack".into(),
                     remaining: (sys::ODID_PACK_MAX_MESSAGES as usize).saturating_sub(message_count),
                     required: message_count + 1,
                 });
@@ -1323,10 +1351,10 @@ impl UasData {
 
             let required = sys::ODID_MESSAGE_SIZE as usize;
             if message.len() != required {
-                return Err(EncodeError::InvalidValue(
-                    message_name,
-                    format!("encoded length {} (expected {})", message.len(), required),
-                ));
+                return Err(Error::InvalidValue {
+                    field: message_name,
+                    value: format!("encoded length {} (expected {})", message.len(), required),
+                });
             }
 
             let mut raw = [0u8; sys::ODID_MESSAGE_SIZE as usize];
@@ -1362,10 +1390,10 @@ impl UasData {
         }
 
         if message_count == 0 {
-            return Err(EncodeError::InvalidValue(
-                "message_pack",
-                "at least one message is required".to_string(),
-            ));
+            return Err(Error::InvalidValue {
+                field: "MsgPackSize",
+                value: "0".into(),
+            });
         }
 
         message_pack_data.SingleMessageSize = sys::ODID_MESSAGE_SIZE as u8;
@@ -1375,7 +1403,10 @@ impl UasData {
         if unsafe { sys::encodeMessagePack(encoded_pack.as_mut_ptr(), &message_pack_data) } as u32
             != sys::ODID_SUCCESS
         {
-            return Err(EncodeError::Unknown("MessagePack".to_string()));
+            return Err(Error::Unknown {
+                operation: "encode",
+                message: "MessagePack".into(),
+            });
         }
 
         let encoded_pack = unsafe { encoded_pack.assume_init() };
