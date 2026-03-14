@@ -6,7 +6,7 @@ use opendroneid_sys as sys;
 pub mod constants;
 pub mod error;
 mod macros;
-
+mod utils;
 pub use constants::*;
 pub use error::*;
 
@@ -325,7 +325,8 @@ macros::impl_message!(
     ///     // Set fields of the Basic ID message using the builder pattern.
     ///     .with_ua_type(opendroneid::UaType::Aeroplane)
     ///     .with_id_type(opendroneid::IdType::SerialNumber)
-    ///     .with_uas_id([0; 21]);
+    ///     .with_uas_id("TEST1234567890")
+    ///     .expect("Invalid UAS ID value");
     /// ```
     BasicId,
     sys::ODID_BasicID_data,
@@ -360,14 +361,14 @@ impl BasicId {
         self.data.IDType = id_type as u32;
         self
     }
-    /// Returns the UAS ID of the message as a byte array.
-    pub fn uas_id(&self) -> &[i8; 21] {
-        &self.data.UASID
+    /// Returns the UAS ID of the message as a string.
+    pub fn uas_id(&self) -> String {
+        utils::c_string_to_rust(&self.data.UASID)
     }
     /// Sets the UAS ID of the message.
-    pub fn with_uas_id(mut self, uas_id: [i8; 21]) -> Self {
-        self.data.UASID = uas_id;
-        self
+    /// The string must be encodable to less than 21 bytes in UTF-8 encoding.
+    pub fn with_uas_id(mut self, uas_id: &str) -> Result<BasicId, Error> {
+        utils::set_c_string(uas_id, &mut self.data.UASID).map(|_| self)
     }
 }
 
@@ -906,7 +907,8 @@ macros::impl_message!(
     /// // Create a new Self-ID message with default values.
     /// let self_id = SelfId::default()
     ///     // Set fields of the Self-ID message using the builder pattern.
-    ///     .with_desc_type(opendroneid::DescriptionType::Emergency);
+    ///     .with_desc_type(opendroneid::DescriptionType::Emergency)
+    ///     .with_desc("OBSERVATION").expect("Invalid description value");
     /// ```
     SelfId,
     sys::ODID_SelfID_data,
@@ -931,15 +933,15 @@ impl SelfId {
         self
     }
 
-    /// Returns the description payload as a byte array.
-    pub fn desc(&self) -> &[i8; 24] {
-        &self.data.Desc
+    /// Returns the description payload as a string.
+    pub fn desc(&self) -> String {
+        utils::c_string_to_rust(&self.data.Desc)
     }
 
-    /// Sets the description payload as a byte array.
-    pub fn with_desc(mut self, desc: [i8; 24]) -> Self {
-        self.data.Desc = desc;
-        self
+    /// Sets the description payload as a string.
+    /// The string must be encodable to less than 24 bytes in UTF-8 encoding.
+    pub fn with_desc(mut self, desc: &str) -> Result<Self, Error> {
+        utils::set_c_string(desc, &mut self.data.Desc).map(|_| self)
     }
 }
 
@@ -1150,7 +1152,7 @@ macros::impl_message!(
     /// let operator_id = OperatorId::default()
     ///      // Set fields of the Operator ID message using the builder pattern.
     ///     .with_operator_id_type(opendroneid::OperatorIdType::OperatorId)
-    ///     .with_operator_id([0; 21]);
+    ///     .with_operator_id("TEST").expect("Invalid operator ID value");
     /// ```
     OperatorId,
     sys::ODID_OperatorID_data,
@@ -1176,14 +1178,14 @@ impl OperatorId {
     }
 
     /// Returns the operator ID payload as a byte array.
-    pub fn operator_id(&self) -> &[i8; 21] {
-        &self.data.OperatorId
+    pub fn operator_id(&self) -> String {
+        utils::c_string_to_rust(&self.data.OperatorId)
     }
 
-    /// Sets the operator ID payload as a byte array.
-    pub fn with_operator_id(mut self, operator_id: [i8; 21]) -> Self {
-        self.data.OperatorId = operator_id;
-        self
+    /// Sets the operator ID payload as a string.
+    /// The string must be encodable to less than 21 bytes in UTF-8 encoding.
+    pub fn with_operator_id(mut self, operator_id: &str) -> Result<Self, Error> {
+        utils::set_c_string(operator_id, &mut self.data.OperatorId).map(|_| self)
     }
 }
 
