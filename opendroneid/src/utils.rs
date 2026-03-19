@@ -1,7 +1,10 @@
 use crate::error::Error;
 
 /// Set a Rust string into a C string buffer, ensuring null-termination and checking for overflow.
-pub fn set_c_string<const N: usize>(input: &str, target: &mut [i8; N]) -> Result<(), Error> {
+pub fn set_c_string<const N: usize>(
+    input: &str,
+    target: &mut [std::os::raw::c_char; N],
+) -> Result<(), Error> {
     let bytes = input.as_bytes();
 
     if bytes.len() >= N {
@@ -21,13 +24,13 @@ pub fn set_c_string<const N: usize>(input: &str, target: &mut [i8; N]) -> Result
     target.fill(0);
     let limit = bytes.len().min(N.saturating_sub(1));
     for (dest, &src) in target.iter_mut().zip(&input.as_bytes()[..limit]) {
-        *dest = src as i8;
+        *dest = src as core::ffi::c_char;
     }
     Ok(())
 }
 
 /// Convert a C string (null-terminated byte array) to a Rust `String`, stopping at the first null byte.
-pub fn c_string_to_rust(c_string: &[i8]) -> String {
+pub fn c_string_to_rust(c_string: &[core::ffi::c_char]) -> String {
     let bytes = c_string
         .iter()
         .take_while(|&&c| c != 0)
@@ -103,7 +106,13 @@ mod tests {
 
     #[test]
     fn c_string_to_rust_stops_at_first_nul() {
-        let input = [b'H' as i8, b'i' as i8, 0, b'X' as i8, b'Y' as i8];
+        let input = [
+            b'H' as core::ffi::c_char,
+            b'i' as core::ffi::c_char,
+            0,
+            b'X' as core::ffi::c_char,
+            b'Y' as core::ffi::c_char,
+        ];
 
         let output = c_string_to_rust(&input);
 
@@ -112,7 +121,7 @@ mod tests {
 
     #[test]
     fn c_string_to_rust_returns_all_bytes_when_no_nul() {
-        let input = [b'O' as i8, b'K' as i8];
+        let input = [b'O' as core::ffi::c_char, b'K' as core::ffi::c_char];
 
         let output = c_string_to_rust(&input);
 
