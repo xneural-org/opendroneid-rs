@@ -1191,7 +1191,7 @@ impl OperatorId {
 
 /// UAS data is a collection of Open Drone ID messages that together represent the state and identity of a UAS.
 /// It may contain multiple Basic ID and Auth messages, but at most one of each of the other message types.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct UasData {
     /// The Basic ID messages associated with this UAS data.
     /// There may be multiple Basic ID messages, but at least one is required.

@@ -94,6 +94,8 @@ fn main() {
         .derive_default(true)
         .derive_debug(true)
         .derive_partialeq(true)
+        .derive_eq(true)
+        .derive_hash(true)
         .generate_comments(true)
         .layout_tests(false)
         .generate()

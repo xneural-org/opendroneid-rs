@@ -9,7 +9,7 @@ macro_rules! impl_message {
         $decode:path
     ) => {
         $(#[$message_attr])*
-        #[derive(Clone, PartialEq, Debug)]
+        #[derive(Clone, PartialEq, Eq, Hash, Debug)]
         pub struct $message_ty {
             /// Decoded message data. Access it my using the getter methods on the message struct.
             data: $data_ty,
