@@ -7,7 +7,6 @@ on:
 
 jobs:
   release:
-    name: Release-plz release
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'xneural-org' }}
     environment: publish
@@ -34,7 +33,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   pr:
-    name: Release-plz PR
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'xneural-org' }}
     permissions:

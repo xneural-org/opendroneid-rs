@@ -1,0 +1,5 @@
+[workspace]
+# This explicitly allows the release to move forward even if the
+# submodule has that weird gitignore/tracked conflict.
+allow_dirty = true
+pr_labels = ["release"]
