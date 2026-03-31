@@ -1,3 +1,7 @@
+//! sys crate for the [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c) library
+//!
+//! Do not use this crate, use [opendroneid](https://crates.io/opendroneid) instead!
+
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]

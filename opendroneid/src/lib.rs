@@ -1,3 +1,5 @@
+//! Rust bindings for the [opendroneid](https://github.com/opendroneid/opendroneid-core-c) library.
+
 use bytes::{Buf, BufMut};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
