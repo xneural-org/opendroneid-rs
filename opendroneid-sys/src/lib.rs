@@ -1,6 +1,8 @@
-//! sys crate for the [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c) library
+//! sys crate for the [`opendroneid-core-c`](https://github.com/opendroneid/opendroneid-core-c) library
 //!
 //! Do not use this crate, use [opendroneid](https://crates.io/opendroneid) instead!
+//!
+//! All message structs are exposed as types.
 
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]

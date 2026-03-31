@@ -1,4 +1,12 @@
-//! Rust bindings for the [opendroneid](https://github.com/opendroneid/opendroneid-core-c) library.
+//! This crate defines Rust abstractions for the structs and enums exported by [opendroneid_sys]
+//! from the C-library.
+//!
+//! * Message types are implemented as a wrapper around the `ODID_*_data` structs from [opendroneid_sys]
+//! * `const` values exported by [opendroneid_sys] are defined as enums or as constants in [constants]
+//!
+//! Each message type implements the [Message] trait that allows decoding and encoding of messages.
+//! A special case is the [UasData] struct, this represents a group of messages which can be
+//! together in a MessagePack message.
 
 use bytes::{Buf, BufMut};
 use num_derive::FromPrimitive;
