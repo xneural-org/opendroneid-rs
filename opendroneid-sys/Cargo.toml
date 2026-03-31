@@ -1,18 +1,19 @@
 [package]
 name = "opendroneid-sys"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Raw FFI bindings to libopendroneid (Open Drone ID core C library)"
 license = "Apache-2.0"
 repository = "https://github.com/xneural-org/opendroneid-rs"
 links = "opendroneid"
 build = "build.rs"
+readme = "README.md"
 include = [
-    "Cargo.toml",
-    "build.rs",
-    "src/**",
-    "compat/**",
-    "vendor/opendroneid-core-c/libopendroneid/**",
+  "Cargo.toml",
+  "build.rs",
+  "src/**",
+  "compat/**",
+  "vendor/opendroneid-core-c/libopendroneid/**",
 ]
 
 [features]
