@@ -14,6 +14,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+      id-token: write
     steps:
       - &checkout
         name: Checkout repository
@@ -28,6 +29,8 @@ jobs:
         uses: release-plz/action@v0.5
         with:
           command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   pr:
     name: Release-plz PR
