@@ -1,11 +1,11 @@
-//! This crate defines Rust abstractions for the structs and enums exported by [opendroneid_sys]
+//! This crate defines Rust abstractions for the structs and enums exported by [`opendroneid_sys`]
 //! from the C-library.
 //!
-//! * Message types are implemented as a wrapper around the `ODID_*_data` structs from [opendroneid_sys]
-//! * `const` values exported by [opendroneid_sys] are defined as enums or as constants in [constants]
+//! * Message types are implemented as a wrapper around the `ODID_*_data` structs from [opendroneid_sys`]
+//! * `const` values exported by [`opendroneid_sys`] are defined as enums or as constants in [`constants`]
 //!
-//! Each message type implements the [Message] trait that allows decoding and encoding of messages.
-//! A special case is the [UasData] struct, this represents a group of messages which can be
+//! Each message type implements the [`Message`] trait that allows decoding and encoding of messages.
+//! A special case is the [`UasData`] struct, this represents a group of messages which can be
 //! together in a MessagePack message.
 
 use bytes::{Buf, BufMut};
@@ -58,7 +58,7 @@ impl TryFrom<u8> for MessageId {
     }
 }
 
-/// Type of the [BasicId::uas_id]. Accessible through [BasicId::id_type].
+/// Type of the [`BasicId::uas_id`]. Accessible through [`BasicId::id_type`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum IdType {
@@ -70,7 +70,7 @@ pub enum IdType {
     SpecificSessionId = sys::ODID_idtype_ODID_IDTYPE_SPECIFIC_SESSION_ID,
 }
 
-/// Type of the UA in the [BasicId] message. Accessible through [BasicId::ua_type].
+/// Type of the UA in the [`BasicId`] message. Accessible through [`BasicId::ua_type`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum UaType {
@@ -93,7 +93,7 @@ pub enum UaType {
     Other = sys::ODID_uatype_ODID_UATYPE_OTHER,
 }
 
-/// Status of the UA reported in the [Location] message. Accessible through [Location::status].
+/// Status of the UA reported in the [`Location`] message. Accessible through [`Location::status`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum Status {
@@ -105,7 +105,7 @@ pub enum Status {
     RemoteIdSystemFailure = sys::ODID_status_ODID_STATUS_REMOTE_ID_SYSTEM_FAILURE,
 }
 
-/// Reference for the [Location::height] of the UA provided by the [Location] message.
+/// Reference for the [`Location::height`] of the UA provided by the [`Location`] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum HeightReference {
@@ -116,7 +116,7 @@ pub enum HeightReference {
     Ground = sys::ODID_Height_reference_ODID_HEIGHT_REF_OVER_GROUND,
 }
 
-/// Accuracy of horizontal position information in the [Location] message.
+/// Accuracy of horizontal position information in the [`Location`] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum HorizontalAccuracy {
@@ -136,7 +136,7 @@ pub enum HorizontalAccuracy {
     LessThan1Meter = sys::ODID_Horizontal_accuracy_ODID_HOR_ACC_1_METER,
 }
 
-/// Accuracy of the [Location::altitude_barometric] and [Location::altitude_geodetic] fields in the [Location] message.
+/// Accuracy of the [`Location::altitude_barometric`] and [`Location::altitude_geodetic`] fields in the [`Location`] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum VerticalAccuracy {
@@ -150,8 +150,8 @@ pub enum VerticalAccuracy {
     LessThan1Meter = sys::ODID_Vertical_accuracy_ODID_VER_ACC_1_METER,
 }
 
-/// Accuracy of the [Location::speed_horizontal] and [Location::speed_vertical] fields in the
-/// [Location] message.
+/// Accuracy of the [`Location::speed_horizontal`] and [`Location::speed_vertical`] fields in the
+/// [`Location`] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum SpeedAccuracy {
@@ -163,7 +163,7 @@ pub enum SpeedAccuracy {
     LessThan0_3MetersPerSecond = sys::ODID_Speed_accuracy_ODID_SPEED_ACC_0_3_METERS_PER_SECOND,
 }
 
-/// Accuracy of the [Location::timestamp] information in the [Location] message.
+/// Accuracy of the [`Location::timestamp`] information in the [`Location`] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum TimestampAccuracy {
@@ -201,7 +201,7 @@ pub enum TimestampAccuracy {
     LessThan1_5Second = sys::ODID_Timestamp_accuracy_ODID_TIME_ACC_1_5_SECOND,
 }
 
-/// Type of authentication used in the [Auth] message.
+/// Type of authentication used in the [`Auth`] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum AuthenticationType {
@@ -223,6 +223,7 @@ pub enum DescriptionType {
     ExtendedStatus = sys::ODID_desctype_ODID_DESC_TYPE_EXTENDED_STATUS,
 }
 
+/// Type of the Operator ID
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum OperatorIdType {
@@ -230,6 +231,7 @@ pub enum OperatorIdType {
     OperatorId = sys::ODID_operatorIdType_ODID_OPERATOR_ID,
 }
 
+/// Type of the Operator location
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[repr(u32)]
 pub enum OperatorLocationType {
@@ -347,7 +349,7 @@ macros::impl_message!(
 );
 
 impl BasicId {
-    /// Returns the UA type of the message, or an error if the value is invalid.
+    /// Returns the UA type of the message, or an [`Error`] if the value is invalid.
     pub fn ua_type(&self) -> Result<UaType, Error> {
         UaType::from_u32(self.data.UAType).ok_or(Error::EnumMappingError {
             field: "UAType",
@@ -359,7 +361,7 @@ impl BasicId {
         self.data.UAType = ua_type as u32;
         self
     }
-    /// Returns the ID type of the message, or an error if the value is invalid.
+    /// Returns the ID type of the message, or an [`Error`] if the value is invalid.
     pub fn id_type(&self) -> Result<IdType, Error> {
         IdType::from_u32(self.data.IDType).ok_or(Error::EnumMappingError {
             field: "IDType",
@@ -409,7 +411,7 @@ macros::impl_message!(
 );
 
 impl Location {
-    /// Returns the status of the message, or an error if the value is invalid.
+    /// Returns the status of the message, or an [`Error`] if the value is invalid.
     pub fn status(&self) -> Result<Status, Error> {
         Status::from_u32(self.data.Status).ok_or(Error::EnumMappingError {
             field: "Status",
@@ -421,7 +423,7 @@ impl Location {
         self.data.Status = status as u32;
         self
     }
-    /// Returns the direction of the UA in degrees from north, or None if the value is invalid.
+    /// Returns the direction of the UA in degrees from north, or `None` if the value is invalid.
     pub fn direction(&self) -> Option<f32> {
         if self.data.Direction == sys::INV_DIR as f32 {
             None
@@ -440,7 +442,7 @@ impl Location {
         self.data.Direction = direction;
         Ok(self)
     }
-    /// Returns the horizontal speed of the UA in m/s, or None if the value is invalid.
+    /// Returns the horizontal speed of the UA in m/s, or `None` if the value is invalid.
     pub fn speed_horizontal(&self) -> Option<f32> {
         if self.data.SpeedHorizontal == sys::INV_SPEED_H as f32 {
             None
@@ -460,7 +462,7 @@ impl Location {
         self.data.SpeedHorizontal = speed;
         Ok(self)
     }
-    /// Returns the vertical speed of the UA in m/s, or None if the value is invalid.
+    /// Returns the vertical speed of the UA in m/s, or `None` if the value is invalid.
     pub fn speed_vertical(&self) -> Option<f32> {
         if self.data.SpeedVertical == sys::INV_SPEED_V as f32 {
             None
@@ -511,7 +513,7 @@ impl Location {
         self.data.Longitude = longitude;
         Ok(self)
     }
-    /// Returns the barometric altitude of the UA in meters, or None if the value is invalid.
+    /// Returns the barometric altitude of the UA in meters, or `None` if the value is invalid.
     ///
     /// The barometric altitude is the uncorrected barometric pressure altitude
     /// (based on reference standard 29.92 inHg, 1013.25 mb).
@@ -534,7 +536,7 @@ impl Location {
         self.data.AltitudeBaro = altitude;
         Ok(self)
     }
-    /// Returns the geodetic altitude of the UA in meters, or None if the value is invalid.
+    /// Returns the geodetic altitude of the UA in meters, or `None` if the value is invalid.
     ///
     /// The geodetic altitude is the distance above or below the surface of the WGS-84 ellipsoid.
     pub fn altitude_geodetic(&self) -> Option<f32> {
@@ -558,7 +560,7 @@ impl Location {
         self.data.AltitudeGeo = altitude;
         Ok(self)
     }
-    /// Returns the height reference of the UA, or an error if the value is invalid.
+    /// Returns the height reference of the UA, or an [`Error`] if the value is invalid.
     pub fn height_type(&self) -> Result<HeightReference, Error> {
         HeightReference::from_u32(self.data.HeightType).ok_or(Error::EnumMappingError {
             field: "HeightType",
@@ -570,7 +572,7 @@ impl Location {
         self.data.HeightType = height_type as u32;
         self
     }
-    /// Returns the height of the UA in meters, or None if the value is invalid.
+    /// Returns the height of the UA in meters, or `None` if the value is invalid.
     pub fn height(&self) -> Option<f32> {
         if self.data.Height == sys::INV_ALT as f32 {
             None
@@ -590,7 +592,7 @@ impl Location {
         self.data.Height = height;
         Ok(self)
     }
-    /// Returns the horizontal accuracy of the location information, or an error if the value is invalid.
+    /// Returns the horizontal accuracy of the location information, or an [`Error`] if the value is invalid.
     pub fn horizontal_accuracy(&self) -> Result<HorizontalAccuracy, Error> {
         HorizontalAccuracy::from_u32(self.data.HorizAccuracy).ok_or(Error::EnumMappingError {
             field: "HorizontalAccuracy",
@@ -602,7 +604,7 @@ impl Location {
         self.data.HorizAccuracy = accuracy as u32;
         self
     }
-    /// Returns the vertical accuracy of the location information, or an error if the value is invalid.
+    /// Returns the vertical accuracy of the location information, or an [`Error`] if the value is invalid.
     pub fn vertical_accuracy(&self) -> Result<VerticalAccuracy, Error> {
         VerticalAccuracy::from_u32(self.data.VertAccuracy).ok_or(Error::EnumMappingError {
             field: "VerticalAccuracy",
@@ -614,7 +616,7 @@ impl Location {
         self.data.VertAccuracy = accuracy as u32;
         self
     }
-    /// Returns the barometric accuracy of the location information, or an error if the value is invalid.
+    /// Returns the barometric accuracy of the location information, or an [`Error`] if the value is invalid.
     pub fn barometric_accuracy(&self) -> Result<VerticalAccuracy, Error> {
         VerticalAccuracy::from_u32(self.data.BaroAccuracy).ok_or(Error::EnumMappingError {
             field: "BarometricAccuracy",
@@ -626,7 +628,7 @@ impl Location {
         self.data.BaroAccuracy = accuracy as u32;
         self
     }
-    /// Returns the speed accuracy of the location information, or an error if the value is invalid.
+    /// Returns the speed accuracy of the location information, or an [`Error`] if the value is invalid.
     pub fn speed_accuracy(&self) -> Result<SpeedAccuracy, Error> {
         SpeedAccuracy::from_u32(self.data.SpeedAccuracy).ok_or(Error::EnumMappingError {
             field: "SpeedAccuracy",
@@ -638,7 +640,7 @@ impl Location {
         self.data.SpeedAccuracy = accuracy as u32;
         self
     }
-    /// Returns the timestamp accuracy of the location information, or an error if the value is invalid.
+    /// Returns the timestamp accuracy of the location information, or an [`Error`] if the value is invalid.
     pub fn timestamp_accuracy(&self) -> Result<TimestampAccuracy, Error> {
         TimestampAccuracy::from_u32(self.data.TSAccuracy).ok_or(Error::EnumMappingError {
             field: "TimestampAccuracy",
@@ -673,7 +675,7 @@ impl Location {
         Ok(self)
     }
 
-    /// Returns the timestamp as a `chrono::DateTime<chrono::Utc>`, or None if the value is invalid.
+    /// Returns the timestamp as a `chrono::DateTime<chrono::Utc>`, or `None` if the value is invalid.
     ///
     /// <div class="warning">
     /// The value of the timestamp is only valid within one hour of timestamp creation.
@@ -797,7 +799,7 @@ impl Auth {
         self.data.DataPage = data_page;
         Ok(self)
     }
-    /// Returns the authentication type of the message, or an error if the value is invalid.
+    /// Returns the authentication type of the message, or an [`Error`] if the value is invalid.
     pub fn auth_type(&self) -> Result<AuthenticationType, Error> {
         AuthenticationType::from_u32(self.data.AuthType).ok_or(Error::EnumMappingError {
             field: "AuthType",
@@ -929,7 +931,7 @@ macros::impl_message!(
 );
 
 impl SelfId {
-    /// Returns the description type of the message, or an error if the value is invalid.
+    /// Returns the description type of the message, or an [`Error`] if the value is invalid.
     pub fn desc_type(&self) -> Result<DescriptionType, Error> {
         DescriptionType::from_u32(self.data.DescType).ok_or(Error::EnumMappingError {
             field: "DescType",
@@ -968,7 +970,7 @@ macros::impl_message!(
 );
 
 impl System {
-    /// Returns the operator location type of the message, or an error if the value is invalid.
+    /// Returns the operator location type of the message, or an [`Error`] if the value is invalid.
     pub fn operator_location_type(&self) -> Result<OperatorLocationType, Error> {
         OperatorLocationType::from_u32(self.data.OperatorLocationType).ok_or(
             Error::EnumMappingError {
@@ -984,7 +986,7 @@ impl System {
         self
     }
 
-    /// Returns the classification type of the message, or an error if the value is invalid.
+    /// Returns the classification type of the message, or an [`Error`] if the value is invalid.
     pub fn classification_type(&self) -> Result<ClassificationType, Error> {
         ClassificationType::from_u32(self.data.ClassificationType).ok_or(Error::EnumMappingError {
             field: "ClassificationType",
@@ -1094,7 +1096,7 @@ impl System {
         Ok(self)
     }
 
-    /// Returns the EU category of the message, or an error if the value is invalid.
+    /// Returns the EU category of the message, or an [`Error`] if the value is invalid.
     pub fn category(&self) -> Result<Category, Error> {
         Category::from_u32(self.data.CategoryEU).ok_or(Error::EnumMappingError {
             field: "CategoryEU",
@@ -1108,7 +1110,7 @@ impl System {
         self
     }
 
-    /// Returns the EU class of the message, or an error if the value is invalid.
+    /// Returns the EU class of the message, or an [`Error`] if the value is invalid.
     pub fn class_eu(&self) -> Result<ClassEu, Error> {
         ClassEu::from_u32(self.data.ClassEU).ok_or(Error::EnumMappingError {
             field: "ClassEU",
@@ -1173,7 +1175,7 @@ macros::impl_message!(
 );
 
 impl OperatorId {
-    /// Returns the operator ID type of the message, or an error if the value is invalid.
+    /// Returns the operator ID type of the message, or an [`Error`] if the value is invalid.
     pub fn operator_id_type(&self) -> Result<OperatorIdType, Error> {
         OperatorIdType::from_u32(self.data.OperatorIdType).ok_or(Error::EnumMappingError {
             field: "OperatorIdType",
