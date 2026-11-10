@@ -12,7 +12,8 @@ pub use sys::MAX_LON as MAX_LONGITUDE;
 pub use sys::MAX_SPEED_H as MAX_SPEED_HORIZONTAL;
 /// Maximum vertical speed in m/s that can be encoded in Open Drone ID messages
 pub use sys::MAX_SPEED_V as MAX_SPEED_VERTICAL;
-/// Minimum altitude in meters that can be encoded in Open Drone ID messages
+/// Minimum altitude in meters that can be encoded in Open Drone ID messages, which also marks an
+/// unknown altitude
 pub use sys::MIN_ALT as MIN_ALTITUDE;
 /// Minimum heading direction in degrees that can be encoded in Open Drone ID messages
 pub use sys::MIN_DIR as MIN_DIRECTION;
