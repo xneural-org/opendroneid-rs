@@ -428,14 +428,103 @@ impl OperatorLocation {
 }
 
 /// Position of the operator in an [`OperatorLocation`].
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct OperatorPosition {
-    /// Latitude in degrees. `0.0` together with a `longitude` of `0.0` is invalid or unknown.
-    pub latitude: f64,
-    /// Longitude in degrees. `0.0` together with a `latitude` of `0.0` is invalid or unknown.
-    pub longitude: f64,
-    /// Geodetic altitude above the WGS-84 ellipsoid in meters, `None` if invalid or unknown.
+    /// Coordinates of the operator, `None` if they are unknown.
+    pub coordinates: Option<Coordinates>,
+    /// Geodetic altitude above the WGS-84 ellipsoid in meters, `None` if it is unknown.
     pub altitude_geodetic: Option<f32>,
+}
+
+/// WGS-84 coordinates in degrees, in a [`Location`] or an [`OperatorPosition`].
+///
+/// The protocol sends unknown coordinates as 0°/0°, so they cannot be set as known coordinates.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Coordinates {
+    /// Latitude in degrees, [`MIN_LATITUDE`] to [`MAX_LATITUDE`].
+    pub latitude: f64,
+    /// Longitude in degrees, [`MIN_LONGITUDE`] to [`MAX_LONGITUDE`].
+    pub longitude: f64,
+}
+
+impl Coordinates {
+    /// Returns the coordinates, or `None` for 0°/0°, which marks unknown coordinates.
+    fn known(latitude: f64, longitude: f64) -> Option<Self> {
+        (latitude != 0.0 || longitude != 0.0).then_some(Coordinates {
+            latitude,
+            longitude,
+        })
+    }
+
+    /// Checks the coordinates and returns the latitude and longitude to store, 0°/0° for `None`.
+    fn checked(coordinates: Option<Self>) -> Result<(f64, f64), Error> {
+        let Some(Coordinates {
+            latitude,
+            longitude,
+        }) = coordinates
+        else {
+            return Ok((0.0, 0.0));
+        };
+        let latitude = checked(
+            "latitude",
+            Some(latitude),
+            MIN_LATITUDE as f64..=MAX_LATITUDE as f64,
+            0.0,
+        )?;
+        let longitude = checked(
+            "longitude",
+            Some(longitude),
+            MIN_LONGITUDE as f64..=MAX_LONGITUDE as f64,
+            0.0,
+        )?;
+        if latitude == 0.0 && longitude == 0.0 {
+            return Err(Error::InvalidValue {
+                field: "coordinates",
+                value: "0°/0° marks unknown coordinates".into(),
+            });
+        }
+        Ok((latitude, longitude))
+    }
+}
+
+/// Returns `value`, or `None` if it is the `unknown` marker of its field.
+fn known<T: PartialEq>(value: T, unknown: T) -> Option<T> {
+    (value != unknown).then_some(value)
+}
+
+/// Checks that `value` is in `range` and returns the value to store, `unknown` for `None`.
+fn checked<T: PartialOrd + ToString>(
+    field: &'static str,
+    value: Option<T>,
+    range: std::ops::RangeInclusive<T>,
+    unknown: T,
+) -> Result<T, Error> {
+    match value {
+        None => Ok(unknown),
+        Some(value) if range.contains(&value) => Ok(value),
+        Some(value) => Err(Error::InvalidValue {
+            field,
+            value: value.to_string(),
+        }),
+    }
+}
+
+/// Checks an altitude and returns the value to store, [`MIN_ALTITUDE`] for `None`.
+///
+/// [`MIN_ALTITUDE`] itself marks an unknown altitude, so it is not a valid known altitude.
+fn checked_altitude(field: &'static str, altitude: Option<f32>) -> Result<f32, Error> {
+    if altitude == Some(sys::INV_ALT as f32) {
+        return Err(Error::InvalidValue {
+            field,
+            value: format!("{} marks an unknown altitude", sys::INV_ALT),
+        });
+    }
+    checked(
+        field,
+        altitude,
+        MIN_ALTITUDE as f32..=MAX_ALTITUDE as f32,
+        sys::INV_ALT as f32,
+    )
 }
 
 /// Classification of the UA in the [`System`] message. The variant is the [`ClassificationType`].
@@ -585,28 +674,45 @@ impl BasicId {
 macros::impl_message!(
     /// Location message as defined in the underlying C library.
     ///
+    /// Values the UA does not know are `None`. A new message has every such value unknown.
+    ///
     /// ```rust
-    /// use opendroneid::Location;
+    /// use opendroneid::{Coordinates, Location};
     ///
     /// // Create a new Location message with default values.
     /// let location = Location::default()
     ///     // Set fields of the Location message using the builder pattern.
     ///     .with_status(opendroneid::Status::Airborne)
-    ///     .with_latitude(37.7749)
-    ///     .expect("Invalid latitude value")
-    ///     .with_longitude(-77.4194)
-    ///     .expect("Invalid longitude value")
+    ///     .with_coordinates(Coordinates { latitude: 37.7749, longitude: -77.4194 })
+    ///     .expect("Invalid coordinates")
     ///     .with_direction(90.0)
     ///     .expect("Invalid direction value")
-    ///     .with_speed_horizontal(5.0);
+    ///     .with_speed_horizontal(5.0)
+    ///     .expect("Invalid speed value");
+    ///
+    /// assert_eq!(location.direction(), Some(90.0));
+    /// assert_eq!(location.altitude_geodetic(), None);
     /// ```
     Location,
     sys::ODID_Location_data,
     sys::ODID_Location_encoded,
-    sys::odid_initLocationData,
+    init_location_data,
     sys::encodeLocationMessage,
     sys::decodeLocationMessage
 );
+
+/// Initializes the Location data like `odid_initLocationData` and also marks the timestamp as
+/// unknown, which the C library leaves at 0 seconds.
+///
+/// # Safety
+///
+/// `data` must be a valid pointer to an `ODID_Location_data`.
+unsafe fn init_location_data(data: *mut sys::ODID_Location_data) {
+    unsafe {
+        sys::odid_initLocationData(data);
+        (*data).TimeStamp = sys::INV_TIMESTAMP as f32;
+    }
+}
 
 impl Location {
     /// Returns the status of the message, or an [`Error`] if the value is invalid.
@@ -621,145 +727,103 @@ impl Location {
         self.data.Status = status as u32;
         self
     }
-    /// Returns the direction of the UA in degrees from north, or `None` if the value is invalid.
+    /// Returns the direction of the UA in degrees clockwise from true north, or `None` if it is
+    /// unknown.
     pub fn direction(&self) -> Option<f32> {
-        if self.data.Direction == sys::INV_DIR as f32 {
-            None
-        } else {
-            Some(self.data.Direction)
-        }
+        known(self.data.Direction, sys::INV_DIR as f32)
     }
-    /// Sets the direction of the UA in degrees from north.
-    pub fn with_direction(mut self, direction: f32) -> Result<Self, Error> {
-        if direction < MIN_DIRECTION as f32 || direction > MAX_DIRECTION as f32 {
-            return Err(Error::InvalidValue {
-                field: "direction",
-                value: direction.to_string(),
-            });
-        }
-        self.data.Direction = direction;
+    /// Sets the direction of the UA in degrees clockwise from true north, `None` if it is unknown.
+    /// Returns an error if the direction is out of the valid range defined by the protocol.
+    pub fn with_direction(mut self, direction: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.Direction = checked(
+            "direction",
+            direction.into(),
+            MIN_DIRECTION as f32..=MAX_DIRECTION as f32,
+            sys::INV_DIR as f32,
+        )?;
         Ok(self)
     }
-    /// Returns the horizontal speed of the UA in m/s, or `None` if the value is invalid.
+    /// Returns the horizontal speed of the UA in m/s, or `None` if it is unknown.
     pub fn speed_horizontal(&self) -> Option<f32> {
-        if self.data.SpeedHorizontal == sys::INV_SPEED_H as f32 {
-            None
-        } else {
-            Some(self.data.SpeedHorizontal)
-        }
+        known(self.data.SpeedHorizontal, sys::INV_SPEED_H as f32)
     }
-    /// Sets the horizontal speed of the UA in m/s.
+    /// Sets the horizontal speed of the UA in m/s, `None` if it is unknown.
     /// Returns an error if the speed is out of the valid range defined by the protocol.
-    pub fn with_speed_horizontal(mut self, speed: f32) -> Result<Self, Error> {
-        if speed < MIN_SPEED_HORIZONTAL as f32 || speed > MAX_SPEED_HORIZONTAL as f32 {
-            return Err(Error::InvalidValue {
-                field: "speed_horizontal",
-                value: speed.to_string(),
-            });
-        }
-        self.data.SpeedHorizontal = speed;
+    pub fn with_speed_horizontal(mut self, speed: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.SpeedHorizontal = checked(
+            "speed_horizontal",
+            speed.into(),
+            MIN_SPEED_HORIZONTAL as f32..=MAX_SPEED_HORIZONTAL as f32,
+            sys::INV_SPEED_H as f32,
+        )?;
         Ok(self)
     }
-    /// Returns the vertical speed of the UA in m/s, or `None` if the value is invalid.
+    /// Returns the vertical speed of the UA in m/s, positive upwards, or `None` if it is unknown.
     pub fn speed_vertical(&self) -> Option<f32> {
-        if self.data.SpeedVertical == sys::INV_SPEED_V as f32 {
-            None
-        } else {
-            Some(self.data.SpeedVertical)
-        }
+        known(self.data.SpeedVertical, sys::INV_SPEED_V as f32)
     }
-    /// Sets the vertical speed of the UA in m/s.
-    pub fn with_speed_vertical(mut self, speed: f32) -> Result<Self, Error> {
-        if speed < MIN_SPEED_VERTICAL as f32 || speed > MAX_SPEED_VERTICAL as f32 {
-            return Err(Error::InvalidValue {
-                field: "speed_vertical",
-                value: speed.to_string(),
-            });
-        }
-        self.data.SpeedVertical = speed;
+    /// Sets the vertical speed of the UA in m/s, positive upwards, `None` if it is unknown.
+    /// Returns an error if the speed is out of the valid range defined by the protocol.
+    pub fn with_speed_vertical(mut self, speed: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.SpeedVertical = checked(
+            "speed_vertical",
+            speed.into(),
+            MIN_SPEED_VERTICAL as f32..=MAX_SPEED_VERTICAL as f32,
+            sys::INV_SPEED_V as f32,
+        )?;
         Ok(self)
     }
-    /// Returns the latitude of the UA in degrees.
-    pub fn latitude(&self) -> f64 {
-        self.data.Latitude
+    /// Returns the coordinates of the UA, or `None` if they are unknown.
+    pub fn coordinates(&self) -> Option<Coordinates> {
+        Coordinates::known(self.data.Latitude, self.data.Longitude)
     }
-    /// Sets the latitude of the UA in degrees.
-    /// Returns an error if the latitude is out of the valid range defined by the protocol.
-    pub fn with_latitude(mut self, latitude: f64) -> Result<Self, Error> {
-        if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
-            return Err(Error::InvalidValue {
-                field: "latitude",
-                value: latitude.to_string(),
-            });
-        }
-        self.data.Latitude = latitude;
+    /// Sets the coordinates of the UA, `None` if they are unknown.
+    /// Returns an error if a coordinate is out of the valid range defined by the protocol, or for
+    /// 0°/0°, which marks unknown coordinates.
+    pub fn with_coordinates(
+        mut self,
+        coordinates: impl Into<Option<Coordinates>>,
+    ) -> Result<Self, Error> {
+        (self.data.Latitude, self.data.Longitude) = Coordinates::checked(coordinates.into())?;
         Ok(self)
     }
-    /// Returns the longitude of the UA in degrees.
-    pub fn longitude(&self) -> f64 {
-        self.data.Longitude
-    }
-    /// Sets the longitude of the UA in degrees.
-    /// Returns an error if the longitude is out of the valid range defined by the protocol.
-    pub fn with_longitude(mut self, longitude: f64) -> Result<Self, Error> {
-        if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
-            return Err(Error::InvalidValue {
-                field: "longitude",
-                value: longitude.to_string(),
-            });
-        }
-        self.data.Longitude = longitude;
-        Ok(self)
-    }
-    /// Returns the barometric altitude of the UA in meters, or `None` if the value is invalid.
+    /// Returns the barometric altitude of the UA in meters, or `None` if it is unknown.
     ///
     /// The barometric altitude is the uncorrected barometric pressure altitude
     /// (based on reference standard 29.92 inHg, 1013.25 mb).
     pub fn altitude_barometric(&self) -> Option<f32> {
-        if self.data.AltitudeBaro == sys::INV_ALT as f32 {
-            None
-        } else {
-            Some(self.data.AltitudeBaro)
-        }
+        known(self.data.AltitudeBaro, sys::INV_ALT as f32)
     }
-    /// Sets the barometric altitude of the UA in meters.
-    /// Returns an error if the altitude is out of the valid range defined by the protocol.
-    pub fn with_altitude_barometric(mut self, altitude: f32) -> Result<Self, Error> {
-        if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "altitude_barometric",
-                value: altitude.to_string(),
-            });
-        }
-        self.data.AltitudeBaro = altitude;
+    /// Sets the barometric altitude of the UA in meters, `None` if it is unknown.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown altitude.
+    pub fn with_altitude_barometric(
+        mut self,
+        altitude: impl Into<Option<f32>>,
+    ) -> Result<Self, Error> {
+        self.data.AltitudeBaro = checked_altitude("altitude_barometric", altitude.into())?;
         Ok(self)
     }
-    /// Returns the geodetic altitude of the UA in meters, or `None` if the value is invalid.
+    /// Returns the geodetic altitude of the UA in meters, or `None` if it is unknown.
     ///
     /// The geodetic altitude is the distance above or below the surface of the WGS-84 ellipsoid.
     pub fn altitude_geodetic(&self) -> Option<f32> {
-        if self.data.AltitudeGeo == sys::INV_ALT as f32 {
-            None
-        } else {
-            Some(self.data.AltitudeGeo)
-        }
+        known(self.data.AltitudeGeo, sys::INV_ALT as f32)
     }
-    /// Sets the geodetic altitude of the UA in meters.
-    /// Returns an error if the altitude is out of the valid range defined by the protocol.
+    /// Sets the geodetic altitude of the UA in meters, `None` if it is unknown.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown altitude.
     ///
     /// The geodetic altitude is the distance above or below the surface of the WGS-84 ellipsoid.
-    pub fn with_altitude_geodetic(mut self, altitude: f32) -> Result<Self, Error> {
-        if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
-            return Err(Error::InvalidValue {
-                field: "altitude_geodetic",
-                value: altitude.to_string(),
-            });
-        }
-        self.data.AltitudeGeo = altitude;
+    pub fn with_altitude_geodetic(
+        mut self,
+        altitude: impl Into<Option<f32>>,
+    ) -> Result<Self, Error> {
+        self.data.AltitudeGeo = checked_altitude("altitude_geodetic", altitude.into())?;
         Ok(self)
     }
-    /// Returns the height of the UA, `None` if the height is invalid or unknown, or an [`Error`] if
-    /// the height reference is invalid.
+    /// Returns the height of the UA, `None` if it is unknown, or an [`Error`] if the height
+    /// reference is invalid.
     ///
     /// The variant of the [`Height`] is the height reference of the message.
     pub fn height(&self) -> Result<Option<Height>, Error> {
@@ -768,26 +832,22 @@ impl Location {
                 field: "HeightType",
                 value: self.data.HeightType,
             })?;
-        if self.data.Height == sys::INV_ALT as f32 {
-            return Ok(None);
-        }
-        Ok(Some(match reference {
-            HeightReference::Takeoff => Height::AboveTakeoff(self.data.Height),
-            HeightReference::Ground => Height::AboveGroundLevel(self.data.Height),
-        }))
+        Ok(
+            known(self.data.Height, sys::INV_ALT as f32).map(|height| match reference {
+                HeightReference::Takeoff => Height::AboveTakeoff(height),
+                HeightReference::Ground => Height::AboveGroundLevel(height),
+            }),
+        )
     }
-    /// Sets the height of the UA and its reference.
-    /// Returns an error if the height is out of the valid range defined by the protocol.
-    pub fn with_height(mut self, height: Height) -> Result<Self, Error> {
-        let value = height.value();
-        if value < MIN_ALTITUDE as f32 || value > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "height",
-                value: value.to_string(),
-            });
-        }
-        self.data.HeightType = height.reference() as u32;
-        self.data.Height = value;
+    /// Sets the height of the UA and its reference, `None` if it is unknown.
+    /// Returns an error if the height is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown height.
+    pub fn with_height(mut self, height: impl Into<Option<Height>>) -> Result<Self, Error> {
+        let height = height.into();
+        self.data.Height = checked_altitude("height", height.map(|height| height.value()))?;
+        // An unknown height has no reference, so store the default one.
+        let reference = height.map_or(HeightReference::default(), |height| height.reference());
+        self.data.HeightType = reference as u32;
         Ok(self)
     }
     /// Returns the horizontal accuracy of the location information, or an [`Error`] if the value is invalid.
@@ -853,23 +913,19 @@ impl Location {
 
     /// Returns the timestamp as a floating point number of seconds since the start of the hour
     pub fn timestamp(&self) -> Option<f32> {
-        if self.data.TimeStamp == sys::INV_TIMESTAMP as f32 {
-            None
-        } else {
-            Some(self.data.TimeStamp)
-        }
+        known(self.data.TimeStamp, sys::INV_TIMESTAMP as f32)
     }
 
-    /// Sets the timestamp as a floating point number of seconds since the start of the hour.
+    /// Sets the timestamp as a floating point number of seconds since the start of the hour,
+    /// `None` if it is unknown.
     /// Returns an error if the timestamp is out of the valid range defined by the protocol.
-    pub fn with_timestamp(mut self, timestamp: f32) -> Result<Self, Error> {
-        if timestamp < 0 as f32 || timestamp > sys::MAX_TIMESTAMP as f32 {
-            return Err(Error::InvalidValue {
-                field: "timestamp",
-                value: timestamp.to_string(),
-            });
-        }
-        self.data.TimeStamp = timestamp;
+    pub fn with_timestamp(mut self, timestamp: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.TimeStamp = checked(
+            "timestamp",
+            timestamp.into(),
+            0.0..=sys::MAX_TIMESTAMP as f32,
+            sys::INV_TIMESTAMP as f32,
+        )?;
         Ok(self)
     }
 
@@ -1179,10 +1235,11 @@ impl System {
             },
         )?;
         let position = OperatorPosition {
-            latitude: self.data.OperatorLatitude,
-            longitude: self.data.OperatorLongitude,
-            altitude_geodetic: (self.data.OperatorAltitudeGeo != sys::INV_ALT as f32)
-                .then_some(self.data.OperatorAltitudeGeo),
+            coordinates: Coordinates::known(
+                self.data.OperatorLatitude,
+                self.data.OperatorLongitude,
+            ),
+            altitude_geodetic: known(self.data.OperatorAltitudeGeo, sys::INV_ALT as f32),
         };
         Ok(match location_type {
             OperatorLocationType::Takeoff => OperatorLocation::Takeoff(position),
@@ -1193,32 +1250,14 @@ impl System {
 
     /// Sets the location of the operator and its type.
     /// Returns an error if a coordinate or the altitude is out of the valid range defined by the
-    /// protocol.
+    /// protocol, or for 0°/0° or [`MIN_ALTITUDE`], which mark unknown values.
     pub fn with_operator_location(mut self, location: OperatorLocation) -> Result<Self, Error> {
         let position = location.position();
-        if position.latitude < MIN_LATITUDE as f64 || position.latitude > MAX_LATITUDE as f64 {
-            return Err(Error::InvalidValue {
-                field: "operator_latitude",
-                value: position.latitude.to_string(),
-            });
-        }
-        if position.longitude < MIN_LONGITUDE as f64 || position.longitude > MAX_LONGITUDE as f64 {
-            return Err(Error::InvalidValue {
-                field: "operator_longitude",
-                value: position.longitude.to_string(),
-            });
-        }
-        let altitude = position.altitude_geodetic.unwrap_or(sys::INV_ALT as f32);
-        if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "operator_altitude_geodetic",
-                value: altitude.to_string(),
-            });
-        }
+        (self.data.OperatorLatitude, self.data.OperatorLongitude) =
+            Coordinates::checked(position.coordinates)?;
+        self.data.OperatorAltitudeGeo =
+            checked_altitude("operator_altitude_geodetic", position.altitude_geodetic)?;
         self.data.OperatorLocationType = location.location_type() as u32;
-        self.data.OperatorLatitude = position.latitude;
-        self.data.OperatorLongitude = position.longitude;
-        self.data.OperatorAltitudeGeo = altitude;
         Ok(self)
     }
 
@@ -1289,37 +1328,29 @@ impl System {
         Ok(self)
     }
 
-    /// Returns the area ceiling altitude in meters.
-    pub fn area_ceiling(&self) -> f32 {
-        self.data.AreaCeiling
+    /// Returns the geodetic altitude of the area ceiling in meters, or `None` if it is unknown.
+    pub fn area_ceiling(&self) -> Option<f32> {
+        known(self.data.AreaCeiling, sys::INV_ALT as f32)
     }
 
-    /// Sets the area ceiling altitude in meters.
-    pub fn with_area_ceiling(mut self, area_ceiling: f32) -> Result<Self, Error> {
-        if area_ceiling < MIN_ALTITUDE as f32 || area_ceiling > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "area_ceiling",
-                value: area_ceiling.to_string(),
-            });
-        }
-        self.data.AreaCeiling = area_ceiling;
+    /// Sets the geodetic altitude of the area ceiling in meters, `None` if it is unknown.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown altitude.
+    pub fn with_area_ceiling(mut self, altitude: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.AreaCeiling = checked_altitude("area_ceiling", altitude.into())?;
         Ok(self)
     }
 
-    /// Returns the area floor altitude in meters.
-    pub fn area_floor(&self) -> f32 {
-        self.data.AreaFloor
+    /// Returns the geodetic altitude of the area floor in meters, or `None` if it is unknown.
+    pub fn area_floor(&self) -> Option<f32> {
+        known(self.data.AreaFloor, sys::INV_ALT as f32)
     }
 
-    /// Sets the area floor altitude in meters.
-    pub fn with_area_floor(mut self, area_floor: f32) -> Result<Self, Error> {
-        if area_floor < MIN_ALTITUDE as f32 || area_floor > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "area_floor",
-                value: area_floor.to_string(),
-            });
-        }
-        self.data.AreaFloor = area_floor;
+    /// Sets the geodetic altitude of the area floor in meters, `None` if it is unknown.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown altitude.
+    pub fn with_area_floor(mut self, altitude: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.AreaFloor = checked_altitude("area_floor", altitude.into())?;
         Ok(self)
     }
 
@@ -1812,28 +1843,41 @@ mod tests {
         ));
     }
 
+    const MUNICH: Coordinates = Coordinates {
+        latitude: 48.137_154_3,
+        longitude: 11.575_382_1,
+    };
+
+    fn assert_coordinates_eq(actual: Option<Coordinates>, expected: Option<Coordinates>) {
+        match (actual, expected) {
+            (Some(actual), Some(expected)) => {
+                assert!((actual.latitude - expected.latitude).abs() < 1e-7);
+                assert!((actual.longitude - expected.longitude).abs() < 1e-7);
+            }
+            (actual, expected) => assert_eq!(actual, expected),
+        }
+    }
+
     #[test]
     fn operator_location_round_trips_with_type() {
         let position = OperatorPosition {
-            latitude: 48.137_154_3,
-            longitude: 11.575_382_1,
+            coordinates: Some(MUNICH),
             altitude_geodetic: Some(520.5),
         };
         for location in [
             OperatorLocation::Takeoff(position),
             OperatorLocation::LiveGnss(position),
-            OperatorLocation::Fixed(OperatorPosition {
-                altitude_geodetic: None,
-                ..position
-            }),
+            OperatorLocation::Fixed(OperatorPosition::default()),
         ] {
             let decoded = round_trip(&System::default().with_operator_location(location).unwrap())
                 .operator_location()
                 .unwrap();
 
             assert_eq!(decoded.location_type(), location.location_type());
-            assert!((decoded.position().latitude - position.latitude).abs() < 1e-7);
-            assert!((decoded.position().longitude - position.longitude).abs() < 1e-7);
+            assert_coordinates_eq(
+                decoded.position().coordinates,
+                location.position().coordinates,
+            );
             assert_eq!(
                 decoded.position().altitude_geodetic,
                 location.position().altitude_geodetic
@@ -1845,18 +1889,151 @@ mod tests {
     fn operator_location_out_of_range_is_rejected() {
         let result =
             System::default().with_operator_location(OperatorLocation::Fixed(OperatorPosition {
-                latitude: 91.0,
-                longitude: 0.0,
+                coordinates: Some(Coordinates {
+                    latitude: 91.0,
+                    longitude: 0.0,
+                }),
                 altitude_geodetic: None,
             }));
 
         assert!(matches!(
             result,
             Err(Error::InvalidValue {
-                field: "operator_latitude",
+                field: "latitude",
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn default_location_values_are_unknown() {
+        let location = Location::default();
+
+        assert_eq!(location.direction(), None);
+        assert_eq!(location.speed_horizontal(), None);
+        assert_eq!(location.speed_vertical(), None);
+        assert_eq!(location.coordinates(), None);
+        assert_eq!(location.altitude_barometric(), None);
+        assert_eq!(location.altitude_geodetic(), None);
+        assert_eq!(location.height().unwrap(), None);
+        assert_eq!(location.timestamp(), None);
+    }
+
+    #[test]
+    fn known_location_values_round_trip() {
+        let decoded = round_trip(
+            &Location::default()
+                .with_direction(271.0)
+                .unwrap()
+                .with_speed_horizontal(12.25)
+                .unwrap()
+                .with_speed_vertical(-3.5)
+                .unwrap()
+                .with_coordinates(MUNICH)
+                .unwrap()
+                .with_altitude_barometric(512.5)
+                .unwrap()
+                .with_altitude_geodetic(560.0)
+                .unwrap()
+                .with_timestamp(1234.5)
+                .unwrap(),
+        );
+
+        assert_eq!(decoded.direction(), Some(271.0));
+        assert_eq!(decoded.speed_horizontal(), Some(12.25));
+        assert_eq!(decoded.speed_vertical(), Some(-3.5));
+        assert_coordinates_eq(decoded.coordinates(), Some(MUNICH));
+        assert_eq!(decoded.altitude_barometric(), Some(512.5));
+        assert_eq!(decoded.altitude_geodetic(), Some(560.0));
+        assert_eq!(decoded.timestamp(), Some(1234.5));
+    }
+
+    #[test]
+    fn location_values_can_be_set_to_unknown() {
+        let decoded = round_trip(
+            &Location::default()
+                .with_direction(90.0)
+                .and_then(|l| l.with_direction(None))
+                .and_then(|l| l.with_speed_horizontal(1.0))
+                .and_then(|l| l.with_speed_horizontal(None))
+                .and_then(|l| l.with_speed_vertical(1.0))
+                .and_then(|l| l.with_speed_vertical(None))
+                .and_then(|l| l.with_coordinates(MUNICH))
+                .and_then(|l| l.with_coordinates(None))
+                .and_then(|l| l.with_altitude_barometric(1.0))
+                .and_then(|l| l.with_altitude_barometric(None))
+                .and_then(|l| l.with_altitude_geodetic(1.0))
+                .and_then(|l| l.with_altitude_geodetic(None))
+                .and_then(|l| l.with_height(Height::AboveGroundLevel(1.0)))
+                .and_then(|l| l.with_height(None))
+                .and_then(|l| l.with_timestamp(1.0))
+                .and_then(|l| l.with_timestamp(None))
+                .unwrap(),
+        );
+
+        assert_eq!(decoded, round_trip(&Location::default()));
+    }
+
+    #[test]
+    fn unknown_markers_are_rejected_as_known_values() {
+        assert!(matches!(
+            Location::default().with_coordinates(Coordinates {
+                latitude: 0.0,
+                longitude: 0.0
+            }),
+            Err(Error::InvalidValue {
+                field: "coordinates",
+                ..
+            })
+        ));
+        assert!(matches!(
+            Location::default().with_altitude_geodetic(MIN_ALTITUDE as f32),
+            Err(Error::InvalidValue {
+                field: "altitude_geodetic",
+                ..
+            })
+        ));
+        assert!(matches!(
+            System::default().with_area_floor(MIN_ALTITUDE as f32),
+            Err(Error::InvalidValue {
+                field: "area_floor",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn out_of_range_location_values_are_rejected() {
+        let location = Location::default();
+
+        assert!(location.clone().with_direction(361.0).is_err());
+        assert!(location.clone().with_direction(f32::NAN).is_err());
+        assert!(location.clone().with_speed_horizontal(255.0).is_err());
+        assert!(location.clone().with_speed_vertical(63.0).is_err());
+        assert!(location.clone().with_timestamp(3600.5).is_err());
+        assert!(
+            location
+                .with_coordinates(Coordinates {
+                    latitude: 0.0,
+                    longitude: 180.5
+                })
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn area_ceiling_and_floor_round_trip() {
+        let system = System::default()
+            .with_area_ceiling(150.0)
+            .unwrap()
+            .with_area_floor(None)
+            .unwrap();
+
+        let decoded = round_trip(&system);
+
+        assert_eq!(decoded.area_ceiling(), Some(150.0));
+        assert_eq!(decoded.area_floor(), None);
+        assert_eq!(System::default().area_ceiling(), None);
     }
 
     #[test]
