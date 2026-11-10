@@ -977,88 +977,38 @@ impl Location {
         Ok(self)
     }
 
-    /// Returns the timestamp as a `chrono::DateTime<chrono::Utc>`, or `None` if the value is invalid.
+    /// Returns the timestamp as the time nearest to `reference`, or `None` if it is unknown.
     ///
-    /// <div class="warning">
-    /// The value of the timestamp is only valid within one hour of timestamp creation.
-    /// The internally stored value is relative to the start of the current hour, so, if more than
-    /// one hour has passed since the timestamp was created, the returned value may be inaccurate.
-    /// </div>
-    ///
+    /// The message only holds the seconds since the start of the hour. The hour is chosen so that
+    /// the time is at most half an hour away from `reference`, usually the time the message was
+    /// received. This also holds when the clock of the UA is slightly ahead of the receiver.
     #[cfg(feature = "chrono")]
-    pub fn chrono_timestamp(&self) -> Option<Result<chrono::DateTime<chrono::Utc>, Error>> {
-        if self.data.TimeStamp == sys::INV_TIMESTAMP as f32 {
-            None
-        } else {
-            Some(decode_timestamp(self.data.TimeStamp))
+    pub fn chrono_timestamp(
+        &self,
+        reference: chrono::DateTime<chrono::Utc>,
+    ) -> Option<chrono::DateTime<chrono::Utc>> {
+        let offset_ms = (f64::from(self.timestamp()?) * 1000.0).round() as i64;
+        let reference_ms = reference.timestamp_millis();
+        let mut time_ms = reference_ms - reference_ms.rem_euclid(HOUR_MS) + offset_ms;
+        if time_ms - reference_ms > HOUR_MS / 2 {
+            time_ms -= HOUR_MS;
+        } else if reference_ms - time_ms > HOUR_MS / 2 {
+            time_ms += HOUR_MS;
         }
+        chrono::DateTime::from_timestamp_millis(time_ms)
     }
-    /// Sets the timestamp using a `chrono::DateTime<chrono::Utc>`.
+
+    /// Sets the timestamp to the seconds of `time` since the start of its hour.
     #[cfg(feature = "chrono")]
-    pub fn with_chrono_timestamp(mut self, timestamp: chrono::DateTime<chrono::Utc>) -> Self {
-        self.data.TimeStamp = encode_timestamp(timestamp);
+    pub fn with_chrono_timestamp(mut self, time: chrono::DateTime<chrono::Utc>) -> Self {
+        self.data.TimeStamp = time.timestamp_millis().rem_euclid(HOUR_MS) as f32 / 1000.0;
         self
     }
 }
 
+/// Number of milliseconds in an hour, the range of the [`Location`] timestamp.
 #[cfg(feature = "chrono")]
-fn decode_timestamp(value: f32) -> Result<chrono::DateTime<chrono::Utc>, Error> {
-    use chrono::Timelike;
-    let now = chrono::Utc::now();
-
-    let this_hour_start = now
-        .with_minute(0)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.minute",
-            value: "0".to_string(),
-        })?
-        .with_second(0)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.second",
-            value: "0".to_string(),
-        })?
-        .with_nanosecond(0)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.nanosecond",
-            value: "0".to_string(),
-        })?;
-    let mins = now.minute();
-    let secs = now.second();
-    let nanos = now.nanosecond();
-    let now_secs = (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0);
-
-    let base_hour = if value > now_secs {
-        this_hour_start - chrono::Duration::hours(1)
-    } else {
-        this_hour_start
-    };
-
-    base_hour
-        .with_minute((value / 60.0) as u32)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.minute",
-            value: value.to_string(),
-        })?
-        .with_second((value % 60.0) as u32)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.second",
-            value: value.to_string(),
-        })?
-        .with_nanosecond(((value % 1.0) * 1_000_000_000.0) as u32)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.nanosecond",
-            value: value.to_string(),
-        })
-}
-
-#[cfg(feature = "chrono")]
-fn encode_timestamp(value: chrono::DateTime<chrono::Utc>) -> f32 {
-    use chrono::Timelike;
-    let mins = value.minute();
-    let secs = value.second();
-    let nanos = value.nanosecond();
-    (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0)
-}
+const HOUR_MS: i64 = 3_600_000;
 
 /// Number of seconds from 1970-01-01 to 2019-01-01, the epoch of the Auth and System timestamps.
 #[cfg(feature = "chrono")]
@@ -2181,19 +2131,53 @@ mod tests {
     }
 
     #[cfg(feature = "chrono")]
+    fn utc(time: &str) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339(time).unwrap().to_utc()
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn location_timestamp_is_nearest_to_the_reference() {
+        for (seconds, reference, expected) in [
+            (600.0, "2026-11-10T15:20:00Z", "2026-11-10T15:10:00Z"),
+            // Sent just before the hour, received just after it.
+            (3598.0, "2026-11-10T15:00:10Z", "2026-11-10T14:59:58Z"),
+            // Clock of the UA slightly ahead of the receiver.
+            (0.5, "2026-11-10T14:59:59Z", "2026-11-10T15:00:00.500Z"),
+            (1800.0, "2026-11-10T15:00:00Z", "2026-11-10T15:30:00Z"),
+        ] {
+            let location = Location::default().with_timestamp(seconds).unwrap();
+
+            assert_eq!(
+                location.chrono_timestamp(utc(reference)),
+                Some(utc(expected))
+            );
+        }
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn location_chrono_timestamp_round_trips() {
+        let time = utc("2026-11-10T15:42:17.300Z");
+        let decoded = round_trip(&Location::default().with_chrono_timestamp(time));
+
+        assert_eq!(decoded.timestamp(), Some(2537.3));
+        assert_eq!(
+            decoded.chrono_timestamp(utc("2026-11-10T15:42:18Z")),
+            Some(time)
+        );
+        assert_eq!(Location::default().chrono_timestamp(time), None);
+    }
+
+    #[cfg(feature = "chrono")]
     #[test]
     fn odid_epoch_conversions() {
-        let time = chrono::DateTime::parse_from_rfc3339("2026-11-10T15:00:00Z")
-            .unwrap()
-            .to_utc();
+        let time = utc("2026-11-10T15:00:00Z");
         let seconds = to_odid_epoch(time).unwrap();
 
         assert_eq!(from_odid_epoch(seconds), time);
         assert_eq!(from_odid_epoch(0).to_rfc3339(), "2019-01-01T00:00:00+00:00");
-        let before_2019 = chrono::DateTime::parse_from_rfc3339("2018-12-31T23:59:59Z")
-            .unwrap()
-            .to_utc();
-        assert!(to_odid_epoch(before_2019).is_err());
+        assert!(to_odid_epoch(utc("2018-12-31T23:59:59Z")).is_err());
     }
 
     #[cfg(feature = "chrono")]
