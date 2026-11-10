@@ -1,3 +1,5 @@
+//! Limits and sizes of the fields of Open Drone ID messages.
+
 use opendroneid_sys as sys;
 
 /// Maximum altitude in meters that can be encoded in Open Drone ID messages

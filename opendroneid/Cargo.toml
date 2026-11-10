@@ -14,7 +14,7 @@ chrono = { version = "0.4", default-features = false, optional = true, features 
 num-traits = { version = "0.2" }
 num-derive = { version = "0.4" }
 opendroneid-sys = { version = "0.1.4", path = "../opendroneid-sys", default-features = false }
-thiserror = { version = "1" }
+thiserror = { version = "2" }
 uuid = { version = "1", default-features = false }
 
 [features]
