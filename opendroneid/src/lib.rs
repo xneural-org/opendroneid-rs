@@ -19,6 +19,7 @@ mod macros;
 mod utils;
 pub use constants::*;
 pub use error::*;
+pub use uuid::Uuid;
 
 /// Message IDs used in the Open Drone ID messages as defined in the underlying C library.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
@@ -58,8 +59,8 @@ impl TryFrom<u8> for MessageId {
     }
 }
 
-/// Type of the [`BasicId::uas_id`]. Accessible through [`BasicId::id_type`].
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+/// Type of the [`BasicId::uas_id`]. Accessible through [`BasicId::id_type`] and [`UasId::id_type`].
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum IdType {
     #[default]
@@ -71,7 +72,7 @@ pub enum IdType {
 }
 
 /// Type of the UA in the [`BasicId`] message. Accessible through [`BasicId::ua_type`].
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum UaType {
     #[default]
@@ -94,7 +95,7 @@ pub enum UaType {
 }
 
 /// Status of the UA reported in the [`Location`] message. Accessible through [`Location::status`].
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum Status {
     #[default]
@@ -105,8 +106,8 @@ pub enum Status {
     RemoteIdSystemFailure = sys::ODID_status_ODID_STATUS_REMOTE_ID_SYSTEM_FAILURE,
 }
 
-/// Reference for the [`Location::height`] of the UA provided by the [`Location`] message.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+/// Reference of the [`Location::height`] of the UA. Accessible through [`Height::reference`].
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum HeightReference {
     /// Indicates that the height is relative to the takeoff location of the UA.
@@ -117,7 +118,7 @@ pub enum HeightReference {
 }
 
 /// Accuracy of horizontal position information in the [`Location`] message.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum HorizontalAccuracy {
     #[default]
@@ -137,7 +138,7 @@ pub enum HorizontalAccuracy {
 }
 
 /// Accuracy of the [`Location::altitude_barometric`] and [`Location::altitude_geodetic`] fields in the [`Location`] message.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum VerticalAccuracy {
     #[default]
@@ -152,7 +153,7 @@ pub enum VerticalAccuracy {
 
 /// Accuracy of the [`Location::speed_horizontal`] and [`Location::speed_vertical`] fields in the
 /// [`Location`] message.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum SpeedAccuracy {
     #[default]
@@ -164,7 +165,7 @@ pub enum SpeedAccuracy {
 }
 
 /// Accuracy of the [`Location::timestamp`] information in the [`Location`] message.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum TimestampAccuracy {
     #[default]
@@ -202,7 +203,7 @@ pub enum TimestampAccuracy {
 }
 
 /// Type of authentication used in the [`Auth`] message.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum AuthenticationType {
     #[default]
@@ -214,7 +215,7 @@ pub enum AuthenticationType {
     SpecificAuthentication = sys::ODID_authtype_ODID_AUTH_SPECIFIC_AUTHENTICATION,
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum DescriptionType {
     #[default]
@@ -224,15 +225,15 @@ pub enum DescriptionType {
 }
 
 /// Type of the Operator ID
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum OperatorIdType {
     #[default]
     OperatorId = sys::ODID_operatorIdType_ODID_OPERATOR_ID,
 }
 
-/// Type of the Operator location
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+/// Type of the [`System::operator_location`]. Accessible through [`OperatorLocation::location_type`].
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum OperatorLocationType {
     #[default]
@@ -241,7 +242,8 @@ pub enum OperatorLocationType {
     Fixed = sys::ODID_operator_location_type_ODID_OPERATOR_LOCATION_TYPE_FIXED,
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+/// Type of the [`System::classification`]. Accessible through [`Classification::classification_type`].
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum ClassificationType {
     #[default]
@@ -249,7 +251,8 @@ pub enum ClassificationType {
     EuropeanUnion = sys::ODID_classification_type_ODID_CLASSIFICATION_TYPE_EU,
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+/// EU category of the UA in a [`Classification::EuropeanUnion`].
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum Category {
     #[default]
@@ -259,7 +262,8 @@ pub enum Category {
     Certified = sys::ODID_category_EU_ODID_CATEGORY_EU_CERTIFIED,
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+/// EU class of the UA in a [`Classification::EuropeanUnion`].
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum ClassEu {
     #[default]
@@ -271,6 +275,192 @@ pub enum ClassEu {
     Class4 = sys::ODID_class_EU_ODID_CLASS_EU_CLASS_4,
     Class5 = sys::ODID_class_EU_ODID_CLASS_EU_CLASS_5,
     Class6 = sys::ODID_class_EU_ODID_CLASS_EU_CLASS_6,
+}
+
+/// UAS ID of the [`BasicId`] message. The variant is the [`IdType`] of the ID.
+///
+/// The text ID types hold a [`String`], the binary ID types hold the bytes as broadcast.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum UasId {
+    /// ID type 0, none or not declared. The [`UAS_ID_SIZE`] bytes are kept as broadcast.
+    None([u8; UAS_ID_SIZE]),
+    /// ID type 1, manufacturer serial number in ANSI/CTA-2063-A format.
+    SerialNumber(String),
+    /// ID type 2, CAA issued registration ID, `<ICAO Nationality Mark>.<CAA Assigned ID>`.
+    CaaRegistrationId(String),
+    /// ID type 3, UTM assigned UUID, broadcast in the first 16 bytes.
+    UtmAssignedUuid(Uuid),
+    /// ID type 4, specific session ID.
+    SpecificSessionId(SpecificSessionId),
+}
+
+impl UasId {
+    /// Returns the [`IdType`] of the UAS ID.
+    pub fn id_type(&self) -> IdType {
+        match self {
+            UasId::None(_) => IdType::None,
+            UasId::SerialNumber(_) => IdType::SerialNumber,
+            UasId::CaaRegistrationId(_) => IdType::CaaRegistrationId,
+            UasId::UtmAssignedUuid(_) => IdType::UtmAssignedUuid,
+            UasId::SpecificSessionId(_) => IdType::SpecificSessionId,
+        }
+    }
+
+    /// Returns the [`UAS_ID_SIZE`] bytes of the UAS ID as they are broadcast.
+    ///
+    /// Returns an error if a text ID does not fit, see [`BasicId::with_uas_id`].
+    pub fn to_bytes(&self) -> Result<[u8; UAS_ID_SIZE], Error> {
+        let mut bytes = [0u8; UAS_ID_SIZE];
+        match self {
+            UasId::None(id) => bytes = *id,
+            UasId::SerialNumber(id) | UasId::CaaRegistrationId(id) => {
+                if id.len() > UAS_ID_SIZE {
+                    return Err(Error::InvalidValue {
+                        field: "UASID",
+                        value: id.clone(),
+                    });
+                }
+                bytes[..id.len()].copy_from_slice(id.as_bytes());
+            }
+            UasId::UtmAssignedUuid(uuid) => bytes[..UUID_SIZE].copy_from_slice(uuid.as_bytes()),
+            UasId::SpecificSessionId(session_id) => {
+                bytes[0] = session_id.id_type;
+                bytes[1..].copy_from_slice(&session_id.id);
+            }
+        }
+        Ok(bytes)
+    }
+
+    /// Decodes a UAS ID of the given [`IdType`] from the [`UAS_ID_SIZE`] bytes as broadcast.
+    ///
+    /// Text IDs end at the first `0x00` byte, bytes that are not valid UTF-8 are replaced.
+    /// The bytes of the binary ID types are kept as they are.
+    pub fn from_bytes(id_type: IdType, bytes: [u8; UAS_ID_SIZE]) -> Self {
+        match id_type {
+            IdType::None => UasId::None(bytes),
+            IdType::SerialNumber => UasId::SerialNumber(utils::bytes_to_string(&bytes)),
+            IdType::CaaRegistrationId => UasId::CaaRegistrationId(utils::bytes_to_string(&bytes)),
+            IdType::UtmAssignedUuid => {
+                let mut uuid = [0u8; UUID_SIZE];
+                uuid.copy_from_slice(&bytes[..UUID_SIZE]);
+                UasId::UtmAssignedUuid(Uuid::from_bytes(uuid))
+            }
+            IdType::SpecificSessionId => {
+                let mut id = [0u8; SPECIFIC_SESSION_ID_SIZE];
+                id.copy_from_slice(&bytes[1..]);
+                UasId::SpecificSessionId(SpecificSessionId {
+                    id_type: bytes[0],
+                    id,
+                })
+            }
+        }
+    }
+}
+
+/// Specific session ID, a [`UasId`] that identifies one flight session.
+///
+/// It provides a greater level of privacy to the operator than the other ID types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SpecificSessionId {
+    /// Type of the session ID from the specific session ID type registry, the first broadcast byte.
+    ///
+    /// `1` is an IETF DRIP entity ID, `2` is an IEEE 1609.2-2016 HashedID8. `0` is reserved.
+    pub id_type: u8,
+    /// Session ID in accordance with the specification of its type, the remaining broadcast bytes.
+    pub id: [u8; SPECIFIC_SESSION_ID_SIZE],
+}
+
+/// Height of the UA in meters in the [`Location`] message. The variant is the [`HeightReference`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Height {
+    /// Height above the takeoff location of the UA.
+    AboveTakeoff(f32),
+    /// Height above the ground level at the current location of the UA.
+    AboveGroundLevel(f32),
+}
+
+impl Height {
+    /// Returns the [`HeightReference`] of the height.
+    pub fn reference(&self) -> HeightReference {
+        match self {
+            Height::AboveTakeoff(_) => HeightReference::Takeoff,
+            Height::AboveGroundLevel(_) => HeightReference::Ground,
+        }
+    }
+
+    /// Returns the height in meters.
+    pub fn value(&self) -> f32 {
+        match self {
+            Height::AboveTakeoff(height) | Height::AboveGroundLevel(height) => *height,
+        }
+    }
+}
+
+/// Location of the operator in the [`System`] message. The variant is the [`OperatorLocationType`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum OperatorLocation {
+    /// The operator is at the takeoff location.
+    Takeoff(OperatorPosition),
+    /// Dynamic location of the operator from a live GNSS.
+    LiveGnss(OperatorPosition),
+    /// Fixed location of the operator.
+    Fixed(OperatorPosition),
+}
+
+impl OperatorLocation {
+    /// Returns the [`OperatorLocationType`] of the location.
+    pub fn location_type(&self) -> OperatorLocationType {
+        match self {
+            OperatorLocation::Takeoff(_) => OperatorLocationType::Takeoff,
+            OperatorLocation::LiveGnss(_) => OperatorLocationType::LiveGnss,
+            OperatorLocation::Fixed(_) => OperatorLocationType::Fixed,
+        }
+    }
+
+    /// Returns the position of the operator.
+    pub fn position(&self) -> &OperatorPosition {
+        match self {
+            OperatorLocation::Takeoff(position)
+            | OperatorLocation::LiveGnss(position)
+            | OperatorLocation::Fixed(position) => position,
+        }
+    }
+}
+
+/// Position of the operator in an [`OperatorLocation`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OperatorPosition {
+    /// Latitude in degrees. `0.0` together with a `longitude` of `0.0` is invalid or unknown.
+    pub latitude: f64,
+    /// Longitude in degrees. `0.0` together with a `latitude` of `0.0` is invalid or unknown.
+    pub longitude: f64,
+    /// Geodetic altitude above the WGS-84 ellipsoid in meters, `None` if invalid or unknown.
+    pub altitude_geodetic: Option<f32>,
+}
+
+/// Classification of the UA in the [`System`] message. The variant is the [`ClassificationType`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Classification {
+    /// The classification is not declared.
+    #[default]
+    Undeclared,
+    /// Classification of the European Union.
+    EuropeanUnion {
+        /// EU category of the UA.
+        category: Category,
+        /// EU class of the UA.
+        class: ClassEu,
+    },
+}
+
+impl Classification {
+    /// Returns the [`ClassificationType`] of the classification.
+    pub fn classification_type(&self) -> ClassificationType {
+        match self {
+            Classification::Undeclared => ClassificationType::Undeclared,
+            Classification::EuropeanUnion { .. } => ClassificationType::EuropeanUnion,
+        }
+    }
 }
 
 /// Common trait for basic Open Drone ID messages, providing encoding and decoding functionality.
@@ -336,8 +526,7 @@ macros::impl_message!(
     /// let basic_id = BasicId::default()
     ///     // Set fields of the Basic ID message using the builder pattern.
     ///     .with_ua_type(opendroneid::UaType::Aeroplane)
-    ///     .with_id_type(opendroneid::IdType::SerialNumber)
-    ///     .with_uas_id("TEST1234567890")
+    ///     .with_uas_id(opendroneid::UasId::SerialNumber("TEST1234567890".into()))
     ///     .expect("Invalid UAS ID value");
     /// ```
     BasicId,
@@ -368,19 +557,28 @@ impl BasicId {
             value: self.data.IDType,
         })
     }
-    /// Sets the ID type of the message.
-    pub fn with_id_type(mut self, id_type: IdType) -> Self {
-        self.data.IDType = id_type as u32;
-        self
+    /// Returns the UAS ID of the message, or an [`Error`] if the ID type is invalid.
+    ///
+    /// The variant of the [`UasId`] is the ID type of the message.
+    pub fn uas_id(&self) -> Result<UasId, Error> {
+        let mut bytes = [0u8; UAS_ID_SIZE];
+        for (dest, &src) in bytes.iter_mut().zip(&self.data.UASID) {
+            *dest = src as u8;
+        }
+        Ok(UasId::from_bytes(self.id_type()?, bytes))
     }
-    /// Returns the UAS ID of the message as a string.
-    pub fn uas_id(&self) -> String {
-        utils::c_string_to_rust(&self.data.UASID)
-    }
-    /// Sets the UAS ID of the message.
-    /// The string must be encodable to less than 21 bytes in UTF-8 encoding.
-    pub fn with_uas_id(mut self, uas_id: &str) -> Result<BasicId, Error> {
-        utils::set_c_string(uas_id, &mut self.data.UASID).map(|_| self)
+    /// Sets the UAS ID and the ID type of the message.
+    ///
+    /// Returns an error if a [`UasId::SerialNumber`] or [`UasId::CaaRegistrationId`] is longer
+    /// than [`UAS_ID_SIZE`] bytes in UTF-8 encoding.
+    pub fn with_uas_id(mut self, uas_id: UasId) -> Result<BasicId, Error> {
+        let bytes = uas_id.to_bytes()?;
+        self.data.UASID.fill(0);
+        for (dest, &src) in self.data.UASID.iter_mut().zip(&bytes) {
+            *dest = src as core::ffi::c_char;
+        }
+        self.data.IDType = uas_id.id_type() as u32;
+        Ok(self)
     }
 }
 
@@ -560,36 +758,36 @@ impl Location {
         self.data.AltitudeGeo = altitude;
         Ok(self)
     }
-    /// Returns the height reference of the UA, or an [`Error`] if the value is invalid.
-    pub fn height_type(&self) -> Result<HeightReference, Error> {
-        HeightReference::from_u32(self.data.HeightType).ok_or(Error::EnumMappingError {
-            field: "HeightType",
-            value: self.data.HeightType,
-        })
-    }
-    /// Sets the height reference of the UA.
-    pub fn with_height_type(mut self, height_type: HeightReference) -> Self {
-        self.data.HeightType = height_type as u32;
-        self
-    }
-    /// Returns the height of the UA in meters, or `None` if the value is invalid.
-    pub fn height(&self) -> Option<f32> {
+    /// Returns the height of the UA, `None` if the height is invalid or unknown, or an [`Error`] if
+    /// the height reference is invalid.
+    ///
+    /// The variant of the [`Height`] is the height reference of the message.
+    pub fn height(&self) -> Result<Option<Height>, Error> {
+        let reference =
+            HeightReference::from_u32(self.data.HeightType).ok_or(Error::EnumMappingError {
+                field: "HeightType",
+                value: self.data.HeightType,
+            })?;
         if self.data.Height == sys::INV_ALT as f32 {
-            None
-        } else {
-            Some(self.data.Height)
+            return Ok(None);
         }
+        Ok(Some(match reference {
+            HeightReference::Takeoff => Height::AboveTakeoff(self.data.Height),
+            HeightReference::Ground => Height::AboveGroundLevel(self.data.Height),
+        }))
     }
-    /// Sets the height of the UA in meters.
+    /// Sets the height of the UA and its reference.
     /// Returns an error if the height is out of the valid range defined by the protocol.
-    pub fn with_height(mut self, height: f32) -> Result<Self, Error> {
-        if height < MIN_ALTITUDE as f32 || height > MAX_ALTITUDE as f32 {
+    pub fn with_height(mut self, height: Height) -> Result<Self, Error> {
+        let value = height.value();
+        if value < MIN_ALTITUDE as f32 || value > MAX_ALTITUDE as f32 {
             return Err(Error::InvalidValue {
                 field: "height",
-                value: height.to_string(),
+                value: value.to_string(),
             });
         }
-        self.data.Height = height;
+        self.data.HeightType = height.reference() as u32;
+        self.data.Height = value;
         Ok(self)
     }
     /// Returns the horizontal accuracy of the location information, or an [`Error`] if the value is invalid.
@@ -970,68 +1168,97 @@ macros::impl_message!(
 );
 
 impl System {
-    /// Returns the operator location type of the message, or an [`Error`] if the value is invalid.
-    pub fn operator_location_type(&self) -> Result<OperatorLocationType, Error> {
-        OperatorLocationType::from_u32(self.data.OperatorLocationType).ok_or(
+    /// Returns the location of the operator, or an [`Error`] if the location type is invalid.
+    ///
+    /// The variant of the [`OperatorLocation`] is the operator location type of the message.
+    pub fn operator_location(&self) -> Result<OperatorLocation, Error> {
+        let location_type = OperatorLocationType::from_u32(self.data.OperatorLocationType).ok_or(
             Error::EnumMappingError {
                 field: "OperatorLocationType",
                 value: self.data.OperatorLocationType,
             },
-        )
-    }
-
-    /// Sets the operator location type of the message.
-    pub fn with_operator_location_type(mut self, location_type: OperatorLocationType) -> Self {
-        self.data.OperatorLocationType = location_type as u32;
-        self
-    }
-
-    /// Returns the classification type of the message, or an [`Error`] if the value is invalid.
-    pub fn classification_type(&self) -> Result<ClassificationType, Error> {
-        ClassificationType::from_u32(self.data.ClassificationType).ok_or(Error::EnumMappingError {
-            field: "ClassificationType",
-            value: self.data.ClassificationType,
+        )?;
+        let position = OperatorPosition {
+            latitude: self.data.OperatorLatitude,
+            longitude: self.data.OperatorLongitude,
+            altitude_geodetic: (self.data.OperatorAltitudeGeo != sys::INV_ALT as f32)
+                .then_some(self.data.OperatorAltitudeGeo),
+        };
+        Ok(match location_type {
+            OperatorLocationType::Takeoff => OperatorLocation::Takeoff(position),
+            OperatorLocationType::LiveGnss => OperatorLocation::LiveGnss(position),
+            OperatorLocationType::Fixed => OperatorLocation::Fixed(position),
         })
     }
 
-    /// Sets the classification type of the message.
-    pub fn with_classification_type(mut self, classification_type: ClassificationType) -> Self {
-        self.data.ClassificationType = classification_type as u32;
-        self
-    }
-
-    /// Returns the operator latitude in degrees.
-    pub fn operator_latitude(&self) -> f64 {
-        self.data.OperatorLatitude
-    }
-
-    /// Sets the operator latitude in degrees.
-    pub fn with_operator_latitude(mut self, latitude: f64) -> Result<Self, Error> {
-        if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
+    /// Sets the location of the operator and its type.
+    /// Returns an error if a coordinate or the altitude is out of the valid range defined by the
+    /// protocol.
+    pub fn with_operator_location(mut self, location: OperatorLocation) -> Result<Self, Error> {
+        let position = location.position();
+        if position.latitude < MIN_LATITUDE as f64 || position.latitude > MAX_LATITUDE as f64 {
             return Err(Error::InvalidValue {
                 field: "operator_latitude",
-                value: latitude.to_string(),
+                value: position.latitude.to_string(),
             });
         }
-        self.data.OperatorLatitude = latitude;
-        Ok(self)
-    }
-
-    /// Returns the operator longitude in degrees.
-    pub fn operator_longitude(&self) -> f64 {
-        self.data.OperatorLongitude
-    }
-
-    /// Sets the operator longitude in degrees.
-    pub fn with_operator_longitude(mut self, longitude: f64) -> Result<Self, Error> {
-        if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
+        if position.longitude < MIN_LONGITUDE as f64 || position.longitude > MAX_LONGITUDE as f64 {
             return Err(Error::InvalidValue {
                 field: "operator_longitude",
-                value: longitude.to_string(),
+                value: position.longitude.to_string(),
             });
         }
-        self.data.OperatorLongitude = longitude;
+        let altitude = position.altitude_geodetic.unwrap_or(sys::INV_ALT as f32);
+        if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
+            return Err(Error::InvalidValue {
+                field: "operator_altitude_geodetic",
+                value: altitude.to_string(),
+            });
+        }
+        self.data.OperatorLocationType = location.location_type() as u32;
+        self.data.OperatorLatitude = position.latitude;
+        self.data.OperatorLongitude = position.longitude;
+        self.data.OperatorAltitudeGeo = altitude;
         Ok(self)
+    }
+
+    /// Returns the classification of the UA, or an [`Error`] if the classification type, the
+    /// category or the class is invalid.
+    ///
+    /// The variant of the [`Classification`] is the classification type of the message.
+    pub fn classification(&self) -> Result<Classification, Error> {
+        let classification_type = ClassificationType::from_u32(self.data.ClassificationType)
+            .ok_or(Error::EnumMappingError {
+                field: "ClassificationType",
+                value: self.data.ClassificationType,
+            })?;
+        Ok(match classification_type {
+            ClassificationType::Undeclared => Classification::Undeclared,
+            ClassificationType::EuropeanUnion => Classification::EuropeanUnion {
+                category: Category::from_u32(self.data.CategoryEU).ok_or(
+                    Error::EnumMappingError {
+                        field: "CategoryEU",
+                        value: self.data.CategoryEU,
+                    },
+                )?,
+                class: ClassEu::from_u32(self.data.ClassEU).ok_or(Error::EnumMappingError {
+                    field: "ClassEU",
+                    value: self.data.ClassEU,
+                })?,
+            },
+        })
+    }
+
+    /// Sets the classification of the UA and its type.
+    pub fn with_classification(mut self, classification: Classification) -> Self {
+        self.data.ClassificationType = classification.classification_type() as u32;
+        let (category, class) = match classification {
+            Classification::Undeclared => (Category::Undeclared, ClassEu::Undeclared),
+            Classification::EuropeanUnion { category, class } => (category, class),
+        };
+        self.data.CategoryEU = category as u32;
+        self.data.ClassEU = class as u32;
+        self
     }
 
     /// Returns the area count value.
@@ -1093,51 +1320,6 @@ impl System {
             });
         }
         self.data.AreaFloor = area_floor;
-        Ok(self)
-    }
-
-    /// Returns the EU category of the message, or an [`Error`] if the value is invalid.
-    pub fn category(&self) -> Result<Category, Error> {
-        Category::from_u32(self.data.CategoryEU).ok_or(Error::EnumMappingError {
-            field: "CategoryEU",
-            value: self.data.CategoryEU,
-        })
-    }
-
-    /// Sets the EU category of the message.
-    pub fn with_category(mut self, category: Category) -> Self {
-        self.data.CategoryEU = category as u32;
-        self
-    }
-
-    /// Returns the EU class of the message, or an [`Error`] if the value is invalid.
-    pub fn class_eu(&self) -> Result<ClassEu, Error> {
-        ClassEu::from_u32(self.data.ClassEU).ok_or(Error::EnumMappingError {
-            field: "ClassEU",
-            value: self.data.ClassEU,
-        })
-    }
-
-    /// Sets the EU class of the message.
-    pub fn with_class_eu(mut self, class_eu: ClassEu) -> Self {
-        self.data.ClassEU = class_eu as u32;
-        self
-    }
-
-    /// Returns the operator geodetic altitude in meters.
-    pub fn operator_altitude_geo(&self) -> f32 {
-        self.data.OperatorAltitudeGeo
-    }
-
-    /// Sets the operator geodetic altitude in meters.
-    pub fn with_operator_altitude_geo(mut self, altitude: f32) -> Result<Self, Error> {
-        if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "operator_altitude_geo",
-                value: altitude.to_string(),
-            });
-        }
-        self.data.OperatorAltitudeGeo = altitude;
         Ok(self)
     }
 
@@ -1496,23 +1678,215 @@ impl UasData {
 mod tests {
     use super::*;
 
-    const MESSAGE_SIZE: usize = sys::ODID_MESSAGE_SIZE as usize;
+    /// A 16-byte UUID that contains `0x00` (also as first byte) and bytes `>= 0x80`.
+    const UUID: [u8; UUID_SIZE] = [
+        0x00, 0x9f, 0x3c, 0x80, 0xff, 0x00, 0x4a, 0x11, 0x81, 0x00, 0xc3, 0x28, 0x7e, 0xfe, 0x00,
+        0x01,
+    ];
 
-    fn basic_id() -> BasicId {
+    fn round_trip<M: Message>(message: &M) -> M {
+        let encoded = message.encode_to_vec().expect("encoding should succeed");
+        M::decode(encoded.as_slice()).expect("decoding should succeed")
+    }
+
+    fn basic_id(uas_id: UasId) -> BasicId {
         BasicId::default()
             .with_ua_type(UaType::HelicopterOrMultirotor)
-            .with_id_type(IdType::SerialNumber)
-            .with_uas_id("1596F123456789")
-            .unwrap()
+            .with_uas_id(uas_id)
+            .expect("UAS ID should fit")
     }
+
+    #[test]
+    fn utm_assigned_uuid_keeps_binary_bytes() {
+        let uas_id = UasId::UtmAssignedUuid(Uuid::from_bytes(UUID));
+        let message = basic_id(uas_id.clone());
+
+        assert_eq!(message.id_type().unwrap(), IdType::UtmAssignedUuid);
+        assert_eq!(message.uas_id().unwrap(), uas_id);
+        assert_eq!(round_trip(&message).uas_id().unwrap(), uas_id);
+    }
+
+    #[test]
+    fn specific_session_id_keeps_type_and_binary_bytes() {
+        let mut id = [0u8; SPECIFIC_SESSION_ID_SIZE];
+        for (i, byte) in id.iter_mut().enumerate() {
+            *byte = UUID[i % UUID_SIZE] ^ (i as u8);
+        }
+        id[0] = 0x00;
+        let uas_id = UasId::SpecificSessionId(SpecificSessionId { id_type: 1, id });
+
+        let decoded = round_trip(&basic_id(uas_id.clone()));
+
+        assert_eq!(decoded.id_type().unwrap(), IdType::SpecificSessionId);
+        assert_eq!(decoded.uas_id().unwrap(), uas_id);
+    }
+
+    #[test]
+    fn not_declared_id_keeps_bytes() {
+        let mut bytes = [0u8; UAS_ID_SIZE];
+        bytes[..UUID_SIZE].copy_from_slice(&UUID);
+        let uas_id = UasId::None(bytes);
+
+        assert_eq!(
+            round_trip(&basic_id(uas_id.clone())).uas_id().unwrap(),
+            uas_id
+        );
+    }
+
+    #[test]
+    fn text_ids_round_trip() {
+        for uas_id in [
+            UasId::SerialNumber("1596F123456789ABCDEF".into()),
+            UasId::CaaRegistrationId("FIN.87astrdge12k8".into()),
+        ] {
+            assert_eq!(
+                round_trip(&basic_id(uas_id.clone())).uas_id().unwrap(),
+                uas_id
+            );
+        }
+    }
+
+    #[test]
+    fn text_id_longer_than_field_is_rejected() {
+        let result =
+            BasicId::default().with_uas_id(UasId::SerialNumber("1596F123456789ABCDEFG".into()));
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidValue { field: "UASID", .. })
+        ));
+    }
+
+    #[test]
+    fn with_uas_id_overwrites_previous_id() {
+        let message = basic_id(UasId::SerialNumber("ABCDEFGHIJKLMNOPQRST".into()))
+            .with_uas_id(UasId::CaaRegistrationId("FIN.1".into()))
+            .unwrap();
+
+        assert_eq!(
+            message.uas_id().unwrap(),
+            UasId::CaaRegistrationId("FIN.1".into())
+        );
+    }
+
+    #[test]
+    fn invalid_id_type_is_an_error() {
+        let mut message = BasicId::default();
+        message.data.IDType = 42;
+
+        assert!(matches!(
+            message.uas_id(),
+            Err(Error::EnumMappingError {
+                field: "IDType",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn height_round_trips_with_reference() {
+        for height in [Height::AboveTakeoff(12.5), Height::AboveGroundLevel(-3.0)] {
+            let message = Location::default().with_height(height).unwrap();
+
+            assert_eq!(message.height().unwrap(), Some(height));
+            assert_eq!(round_trip(&message).height().unwrap(), Some(height));
+        }
+    }
+
+    #[test]
+    fn default_height_is_unknown() {
+        assert_eq!(Location::default().height().unwrap(), None);
+    }
+
+    #[test]
+    fn height_out_of_range_is_rejected() {
+        let result =
+            Location::default().with_height(Height::AboveTakeoff(MAX_ALTITUDE as f32 + 1.0));
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidValue {
+                field: "height",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn operator_location_round_trips_with_type() {
+        let position = OperatorPosition {
+            latitude: 48.137_154_3,
+            longitude: 11.575_382_1,
+            altitude_geodetic: Some(520.5),
+        };
+        for location in [
+            OperatorLocation::Takeoff(position),
+            OperatorLocation::LiveGnss(position),
+            OperatorLocation::Fixed(OperatorPosition {
+                altitude_geodetic: None,
+                ..position
+            }),
+        ] {
+            let decoded = round_trip(&System::default().with_operator_location(location).unwrap())
+                .operator_location()
+                .unwrap();
+
+            assert_eq!(decoded.location_type(), location.location_type());
+            assert!((decoded.position().latitude - position.latitude).abs() < 1e-7);
+            assert!((decoded.position().longitude - position.longitude).abs() < 1e-7);
+            assert_eq!(
+                decoded.position().altitude_geodetic,
+                location.position().altitude_geodetic
+            );
+        }
+    }
+
+    #[test]
+    fn operator_location_out_of_range_is_rejected() {
+        let result =
+            System::default().with_operator_location(OperatorLocation::Fixed(OperatorPosition {
+                latitude: 91.0,
+                longitude: 0.0,
+                altitude_geodetic: None,
+            }));
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidValue {
+                field: "operator_latitude",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn classification_round_trips() {
+        for classification in [
+            Classification::Undeclared,
+            Classification::EuropeanUnion {
+                category: Category::Specific,
+                class: ClassEu::Class2,
+            },
+        ] {
+            let message = System::default().with_classification(classification);
+
+            assert_eq!(
+                round_trip(&message).classification().unwrap(),
+                classification
+            );
+        }
+    }
+
+    const MESSAGE_SIZE: usize = sys::ODID_MESSAGE_SIZE as usize;
 
     fn uas_data() -> UasData {
         UasData::default()
-            .with_basic_id(vec![basic_id()])
+            .with_basic_id(vec![basic_id(UasId::UtmAssignedUuid(Uuid::from_bytes(
+                UUID,
+            )))])
             .with_location(Some(
                 Location::default()
-                    .with_height_type(HeightReference::Takeoff)
-                    .with_height(42.0)
+                    .with_height(Height::AboveTakeoff(42.0))
                     .unwrap(),
             ))
     }
@@ -1535,7 +1909,9 @@ mod tests {
 
     #[test]
     fn uas_data_decode_rejects_truncated_message() {
-        let encoded = basic_id().encode_to_vec().unwrap();
+        let encoded = basic_id(UasId::SerialNumber("1596F1".into()))
+            .encode_to_vec()
+            .unwrap();
 
         for len in [1, MESSAGE_SIZE - 1] {
             assert_buffer_too_small(UasData::decode(&encoded[..len]), len, MESSAGE_SIZE);
@@ -1601,7 +1977,7 @@ mod tests {
 
     #[test]
     fn uas_data_decode_single_message() {
-        let message = basic_id();
+        let message = basic_id(UasId::SerialNumber("1596F1".into()));
         let mut encoded = message.encode_to_vec().unwrap();
         encoded.push(0xaa);
 
@@ -1620,5 +1996,18 @@ mod tests {
         let buf = (&encoded[..2]).chain(&encoded[2..]);
 
         assert_eq!(UasData::decode(buf).unwrap(), data);
+    }
+
+    #[test]
+    fn undeclared_classification_clears_category_and_class() {
+        let message = System::default()
+            .with_classification(Classification::EuropeanUnion {
+                category: Category::Open,
+                class: ClassEu::Class1,
+            })
+            .with_classification(Classification::Undeclared);
+
+        assert_eq!(message.data.CategoryEU, Category::Undeclared as u32);
+        assert_eq!(message.data.ClassEU, ClassEu::Undeclared as u32);
     }
 }

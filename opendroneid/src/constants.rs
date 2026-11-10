@@ -24,3 +24,9 @@ pub use sys::MIN_LON as MIN_LONGITUDE;
 pub use sys::MIN_SPEED_H as MIN_SPEED_HORIZONTAL;
 /// Minimum vertical speed in m/s that can be encoded in Open Drone ID messages
 pub use sys::MIN_SPEED_V as MIN_SPEED_VERTICAL;
+/// Size in bytes of the UAS ID field of a [`BasicId`](crate::BasicId) message
+pub const UAS_ID_SIZE: usize = sys::ODID_ID_SIZE as usize;
+/// Size in bytes of the [`Uuid`](crate::Uuid) of a [`UasId::UtmAssignedUuid`](crate::UasId::UtmAssignedUuid)
+pub const UUID_SIZE: usize = 16;
+/// Size in bytes of the [`SpecificSessionId::id`](crate::SpecificSessionId::id)
+pub const SPECIFIC_SESSION_ID_SIZE: usize = UAS_ID_SIZE - 1;
