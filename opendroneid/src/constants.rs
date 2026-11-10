@@ -31,3 +31,9 @@ pub const UAS_ID_SIZE: usize = sys::ODID_ID_SIZE as usize;
 pub const UUID_SIZE: usize = 16;
 /// Size in bytes of the [`SpecificSessionId::id`](crate::SpecificSessionId::id)
 pub const SPECIFIC_SESSION_ID_SIZE: usize = UAS_ID_SIZE - 1;
+/// Maximum number of pages of an [`Auth`](crate::Auth) message
+pub const AUTH_MAX_PAGES: usize = sys::ODID_AUTH_MAX_PAGES as usize;
+/// Size in bytes of the authentication data on the first [`AuthPage`](crate::AuthPage)
+pub const AUTH_FIRST_PAGE_DATA_SIZE: usize = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE as usize;
+/// Size in bytes of the authentication data on each later [`AuthPage`](crate::AuthPage)
+pub const AUTH_NEXT_PAGE_DATA_SIZE: usize = sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE as usize;

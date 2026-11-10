@@ -552,6 +552,54 @@ impl Classification {
     }
 }
 
+/// Page of the authentication data in an [`Auth`] message. The variant is the page number.
+///
+/// The first page holds the fields that describe the whole authentication data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AuthPage {
+    /// Page 0.
+    First {
+        /// Index of the last page, below [`AUTH_MAX_PAGES`].
+        last_page_index: u8,
+        /// Length in bytes of the authentication data across all pages.
+        length: u8,
+        /// Seconds since 2019-01-01 00:00:00 UTC.
+        timestamp: u32,
+        /// First bytes of the authentication data.
+        data: [u8; AUTH_FIRST_PAGE_DATA_SIZE],
+    },
+    /// Pages 1 to `AUTH_MAX_PAGES - 1`.
+    Next {
+        /// Page number.
+        index: u8,
+        /// Following bytes of the authentication data.
+        data: [u8; AUTH_NEXT_PAGE_DATA_SIZE],
+    },
+}
+
+impl AuthPage {
+    /// Returns the page number.
+    pub fn index(&self) -> u8 {
+        match self {
+            AuthPage::First { .. } => 0,
+            AuthPage::Next { index, .. } => *index,
+        }
+    }
+
+    /// Returns the bytes of the authentication data on this page.
+    pub fn data(&self) -> &[u8] {
+        match self {
+            AuthPage::First { data, .. } => data,
+            AuthPage::Next { data, .. } => data,
+        }
+    }
+
+    /// Returns how many bytes of authentication data fit in pages 0 to `last_page_index`.
+    fn capacity(last_page_index: u8) -> usize {
+        AUTH_FIRST_PAGE_DATA_SIZE + last_page_index as usize * AUTH_NEXT_PAGE_DATA_SIZE
+    }
+}
+
 /// Common trait for basic Open Drone ID messages, providing encoding and decoding functionality.
 pub trait Message: Sized {
     /// Type of the decoded message data structure
@@ -1012,22 +1060,53 @@ fn encode_timestamp(value: chrono::DateTime<chrono::Utc>) -> f32 {
     (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0)
 }
 
-/// Number of seconds from 1970-01-01 to 2019-01-01
+/// Number of seconds from 1970-01-01 to 2019-01-01, the epoch of the Auth and System timestamps.
 #[cfg(feature = "chrono")]
-const EPOCH_OFFSET: i64 = 1546300800;
+const ODID_EPOCH_OFFSET: i64 = 1546300800;
+
+/// Converts seconds since 2019-01-01 00:00:00 UTC, the timestamp of an [`AuthPage::First`] and of
+/// a [`System`] message, to a `chrono::DateTime<Utc>`.
+#[cfg(feature = "chrono")]
+pub fn from_odid_epoch(seconds: u32) -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::from_timestamp(seconds as i64 + ODID_EPOCH_OFFSET, 0)
+        .expect("every u32 offset from 2019 is a valid date")
+}
+
+/// Converts a `chrono::DateTime<Utc>` to whole seconds since 2019-01-01 00:00:00 UTC, the timestamp
+/// of an [`AuthPage::First`] and of a [`System`] message.
+///
+/// Returns an error for a time before 2019 or after the range of a `u32`.
+#[cfg(feature = "chrono")]
+pub fn to_odid_epoch(time: chrono::DateTime<chrono::Utc>) -> Result<u32, Error> {
+    u32::try_from(time.timestamp() - ODID_EPOCH_OFFSET).map_err(|_| Error::InvalidValue {
+        field: "timestamp",
+        value: time.to_rfc3339(),
+    })
+}
 
 macros::impl_message!(
     /// The Authentication Message defines a field that provides a means for authenticating the
     /// identity of the UA sending the message.
     ///
-    /// ```rust
-    /// use opendroneid::Auth;
+    /// The authentication data is split across up to [`AUTH_MAX_PAGES`] messages, one per
+    /// [`AuthPage`].
     ///
-    /// // Create a new Auth message with default values.
+    /// ```rust
+    /// use opendroneid::{Auth, AuthPage, AUTH_FIRST_PAGE_DATA_SIZE};
+    ///
+    /// // Create the first page of an Auth message.
     /// let auth = Auth::default()
     ///     // Set fields of the Auth message using the builder pattern.
     ///     .with_auth_type(opendroneid::AuthenticationType::UasIdSignature)
-    ///     .with_timestamp(12345);
+    ///     .with_page(AuthPage::First {
+    ///         last_page_index: 0,
+    ///         length: 4,
+    ///         timestamp: 12345,
+    ///         data: [0xde, 0xad, 0xbe, 0xef, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ///     })
+    ///     .expect("Invalid Auth page");
+    ///
+    /// assert_eq!(auth.page().data().len(), AUTH_FIRST_PAGE_DATA_SIZE);
     /// ```
     Auth,
     sys::ODID_Auth_data,
@@ -1038,21 +1117,6 @@ macros::impl_message!(
 );
 
 impl Auth {
-    /// Returns the authentication data page index.
-    pub fn data_page(&self) -> u8 {
-        self.data.DataPage
-    }
-    /// Sets the authentication data page index.
-    pub fn with_data_page(mut self, data_page: u8) -> Result<Self, Error> {
-        if data_page >= sys::ODID_AUTH_MAX_PAGES as u8 {
-            return Err(Error::InvalidValue {
-                field: "data_page",
-                value: data_page.to_string(),
-            });
-        }
-        self.data.DataPage = data_page;
-        Ok(self)
-    }
     /// Returns the authentication type of the message, or an [`Error`] if the value is invalid.
     pub fn auth_type(&self) -> Result<AuthenticationType, Error> {
         AuthenticationType::from_u32(self.data.AuthType).ok_or(Error::EnumMappingError {
@@ -1067,98 +1131,86 @@ impl Auth {
         self
     }
 
-    /// Returns the last authentication page index.
-    pub fn last_page_index(&self) -> u8 {
-        self.data.LastPageIndex
-    }
-
-    /// Sets the last authentication page index.
-    pub fn with_last_page_index(mut self, last_page_index: u8) -> Result<Self, Error> {
-        if last_page_index >= sys::ODID_AUTH_MAX_PAGES as u8 {
-            return Err(Error::InvalidValue {
-                field: "last_page_index",
-                value: last_page_index.to_string(),
-            });
-        }
-
-        if self.data.DataPage == 0 {
-            let max_len = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE
-                + last_page_index as u32 * sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE;
-            if self.data.Length as u32 > max_len {
-                return Err(Error::InvalidValue {
-                    field: "length",
-                    value: self.data.Length.to_string(),
-                });
-            }
-        }
-
-        self.data.LastPageIndex = last_page_index;
-        Ok(self)
-    }
-
-    /// Returns the authentication data length in bytes.
-    pub fn length(&self) -> u8 {
-        self.data.Length
-    }
-
-    /// Sets the authentication data length in bytes.
-    pub fn with_length(mut self, length: u8) -> Result<Self, Error> {
-        if self.data.DataPage == 0 {
-            let max_len = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE
-                + self.data.LastPageIndex as u32 * sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE;
-            if length as u32 > max_len {
-                return Err(Error::InvalidValue {
-                    field: "length",
-                    value: length.to_string(),
-                });
-            }
-        }
-
-        self.data.Length = length;
-        Ok(self)
-    }
-
-    /// Returns the authentication timestamp value.
+    /// Returns the page of the authentication data in the message.
     ///
-    /// 32 bit Unix Timestamp (UTC) in seconds since (epoch) 00:00:00 01/01/2019 (to re-
-    /// late back to standard Unix timestamp, add 1546300800 to the common epoch of
-    /// 00:00:00 01/01/1970)
-    pub fn timestamp(&self) -> u32 {
-        self.data.Timestamp
+    /// The variant of the [`AuthPage`] is the page number of the message.
+    pub fn page(&self) -> AuthPage {
+        if self.data.DataPage == 0 {
+            let mut data = [0u8; AUTH_FIRST_PAGE_DATA_SIZE];
+            data.copy_from_slice(&self.data.AuthData[..AUTH_FIRST_PAGE_DATA_SIZE]);
+            AuthPage::First {
+                last_page_index: self.data.LastPageIndex,
+                length: self.data.Length,
+                timestamp: self.data.Timestamp,
+                data,
+            }
+        } else {
+            let mut data = [0u8; AUTH_NEXT_PAGE_DATA_SIZE];
+            data.copy_from_slice(&self.data.AuthData[..AUTH_NEXT_PAGE_DATA_SIZE]);
+            AuthPage::Next {
+                index: self.data.DataPage,
+                data,
+            }
+        }
     }
 
-    /// Sets the authentication timestamp value.
-    pub fn with_timestamp(mut self, timestamp: u32) -> Self {
-        self.data.Timestamp = timestamp;
-        self
+    /// Sets the page of the authentication data and its page number.
+    ///
+    /// Returns an error if a page index is out of range, or if the `length` of the first page
+    /// exceeds the data that fits in the pages up to its `last_page_index`.
+    pub fn with_page(mut self, page: AuthPage) -> Result<Self, Error> {
+        self.data.AuthData.fill(0);
+        match page {
+            AuthPage::First {
+                last_page_index,
+                length,
+                timestamp,
+                data,
+            } => {
+                if last_page_index as usize >= AUTH_MAX_PAGES {
+                    return Err(Error::InvalidValue {
+                        field: "last_page_index",
+                        value: last_page_index.to_string(),
+                    });
+                }
+                if length as usize > AuthPage::capacity(last_page_index) {
+                    return Err(Error::InvalidValue {
+                        field: "length",
+                        value: length.to_string(),
+                    });
+                }
+                self.data.DataPage = 0;
+                self.data.LastPageIndex = last_page_index;
+                self.data.Length = length;
+                self.data.Timestamp = timestamp;
+                self.data.AuthData[..AUTH_FIRST_PAGE_DATA_SIZE].copy_from_slice(&data);
+            }
+            AuthPage::Next { index, data } => {
+                if index == 0 || index as usize >= AUTH_MAX_PAGES {
+                    return Err(Error::InvalidValue {
+                        field: "index",
+                        value: index.to_string(),
+                    });
+                }
+                // Only the first page carries these fields.
+                self.data.DataPage = index;
+                self.data.LastPageIndex = 0;
+                self.data.Length = 0;
+                self.data.Timestamp = 0;
+                self.data.AuthData[..AUTH_NEXT_PAGE_DATA_SIZE].copy_from_slice(&data);
+            }
+        }
+        Ok(self)
     }
 
+    /// Returns the timestamp of the first page as a `chrono::DateTime<Utc>`, or `None` for a
+    /// later page.
     #[cfg(feature = "chrono")]
-    /// Returns the authentication timestamp as a `chrono::DateTime<Utc>`.
-    /// Returns None if the timestamp value is invalid.
     pub fn chrono_timestamp(&self) -> Option<chrono::DateTime<chrono::Utc>> {
-        chrono::DateTime::<chrono::Utc>::from_timestamp(
-            self.data.Timestamp as i64 + EPOCH_OFFSET,
-            0,
-        )
-    }
-
-    #[cfg(feature = "chrono")]
-    /// Sets the authentication timestamp using a `chrono::DateTime<Utc>`.
-    pub fn with_chrono_timestamp(mut self, timestamp: chrono::DateTime<chrono::Utc>) -> Self {
-        self.data.Timestamp = (timestamp.timestamp() - EPOCH_OFFSET) as u32;
-        self
-    }
-
-    /// Returns the authentication data payload bytes.
-    pub fn auth_data(&self) -> &[u8; 24] {
-        &self.data.AuthData
-    }
-
-    /// Sets the authentication data payload bytes.
-    pub fn with_auth_data(mut self, auth_data: [u8; 24]) -> Self {
-        self.data.AuthData = auth_data;
-        self
+        match self.page() {
+            AuthPage::First { timestamp, .. } => Some(from_odid_epoch(timestamp)),
+            AuthPage::Next { .. } => None,
+        }
     }
 }
 
@@ -1354,12 +1406,16 @@ impl System {
         Ok(self)
     }
 
-    /// Returns the timestamp value.
+    /// Returns the timestamp in seconds since 2019-01-01 00:00:00 UTC.
+    ///
+    /// Convert it with `from_odid_epoch` (feature `chrono`).
     pub fn timestamp(&self) -> u32 {
         self.data.Timestamp
     }
 
-    /// Sets the timestamp value.
+    /// Sets the timestamp in seconds since 2019-01-01 00:00:00 UTC.
+    ///
+    /// Convert a time with `to_odid_epoch` (feature `chrono`).
     pub fn with_timestamp(mut self, timestamp: u32) -> Self {
         self.data.Timestamp = timestamp;
         self
@@ -2034,6 +2090,125 @@ mod tests {
         assert_eq!(decoded.area_ceiling(), Some(150.0));
         assert_eq!(decoded.area_floor(), None);
         assert_eq!(System::default().area_ceiling(), None);
+    }
+
+    fn first_page(last_page_index: u8, length: u8) -> AuthPage {
+        let mut data = [0u8; AUTH_FIRST_PAGE_DATA_SIZE];
+        data[0] = 0x00;
+        data[1] = 0xff;
+        data[AUTH_FIRST_PAGE_DATA_SIZE - 1] = 0x80;
+        AuthPage::First {
+            last_page_index,
+            length,
+            timestamp: 12345,
+            data,
+        }
+    }
+
+    #[test]
+    fn auth_pages_round_trip() {
+        let mut data = [0xa5u8; AUTH_NEXT_PAGE_DATA_SIZE];
+        data[0] = 0x00;
+        for page in [
+            first_page(2, 63),
+            AuthPage::Next { index: 1, data },
+            AuthPage::Next {
+                index: AUTH_MAX_PAGES as u8 - 1,
+                data,
+            },
+        ] {
+            let auth = Auth::default()
+                .with_auth_type(AuthenticationType::MessageSetSignature)
+                .with_page(page)
+                .unwrap();
+
+            let decoded = round_trip(&auth);
+
+            assert_eq!(
+                decoded.auth_type().unwrap(),
+                AuthenticationType::MessageSetSignature
+            );
+            assert_eq!(decoded.page(), page);
+            assert_eq!(decoded.page().index(), page.index());
+        }
+    }
+
+    #[test]
+    fn auth_length_must_fit_in_the_pages() {
+        let capacity = (AUTH_FIRST_PAGE_DATA_SIZE + AUTH_NEXT_PAGE_DATA_SIZE) as u8;
+
+        assert!(Auth::default().with_page(first_page(1, capacity)).is_ok());
+        assert!(matches!(
+            Auth::default().with_page(first_page(1, capacity + 1)),
+            Err(Error::InvalidValue {
+                field: "length",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn auth_page_indices_are_checked() {
+        let data = [0u8; AUTH_NEXT_PAGE_DATA_SIZE];
+        for index in [0, AUTH_MAX_PAGES as u8] {
+            assert!(matches!(
+                Auth::default().with_page(AuthPage::Next { index, data }),
+                Err(Error::InvalidValue { field: "index", .. })
+            ));
+        }
+        assert!(matches!(
+            Auth::default().with_page(first_page(AUTH_MAX_PAGES as u8, 0)),
+            Err(Error::InvalidValue {
+                field: "last_page_index",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn later_auth_page_clears_first_page_fields() {
+        let data = [0x11u8; AUTH_NEXT_PAGE_DATA_SIZE];
+        let auth = Auth::default()
+            .with_page(first_page(3, 40))
+            .unwrap()
+            .with_page(AuthPage::Next { index: 2, data })
+            .unwrap();
+
+        let expected = Auth::default()
+            .with_page(AuthPage::Next { index: 2, data })
+            .unwrap();
+        assert_eq!(auth, expected);
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn odid_epoch_conversions() {
+        let time = chrono::DateTime::parse_from_rfc3339("2026-11-10T15:00:00Z")
+            .unwrap()
+            .to_utc();
+        let seconds = to_odid_epoch(time).unwrap();
+
+        assert_eq!(from_odid_epoch(seconds), time);
+        assert_eq!(from_odid_epoch(0).to_rfc3339(), "2019-01-01T00:00:00+00:00");
+        let before_2019 = chrono::DateTime::parse_from_rfc3339("2018-12-31T23:59:59Z")
+            .unwrap()
+            .to_utc();
+        assert!(to_odid_epoch(before_2019).is_err());
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn auth_chrono_timestamp_is_only_on_the_first_page() {
+        let first = Auth::default().with_page(first_page(0, 1)).unwrap();
+        let next = Auth::default()
+            .with_page(AuthPage::Next {
+                index: 1,
+                data: [0; AUTH_NEXT_PAGE_DATA_SIZE],
+            })
+            .unwrap();
+
+        assert_eq!(first.chrono_timestamp(), Some(from_odid_epoch(12345)));
+        assert_eq!(next.chrono_timestamp(), None);
     }
 
     #[test]
