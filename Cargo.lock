@@ -195,6 +195,7 @@ dependencies = [
  "num-traits",
  "opendroneid-sys",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -310,6 +311,12 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "uuid"
+version = "1.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bed99139f7dac9b5cfe5f17be4d66dc7079a34dee1d74bcc77217119240e267c"
 
 [[package]]
 name = "windows-link"
