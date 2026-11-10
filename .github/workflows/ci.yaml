@@ -2,10 +2,8 @@ name: ci
 on:
   push:
     branches: ["main"]
+  # Run for pull requests into any branch, so stacked pull requests are checked too
   pull_request:
-    branches:
-      - "main"
-      - "!release-plz"
 
 env:
   CARGO_TERM_COLOR: always
