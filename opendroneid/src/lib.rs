@@ -1,12 +1,17 @@
 //! This crate defines Rust abstractions for the structs and enums exported by [`opendroneid_sys`]
 //! from the C-library.
 //!
-//! * Message types are implemented as a wrapper around the `ODID_*_data` structs from [opendroneid_sys`]
-//! * `const` values exported by [`opendroneid_sys`] are defined as enums or as constants in [`constants`]
+//! * Message types are implemented as a wrapper around the `ODID_*_data` structs from
+//!   [`opendroneid_sys`]
+//! * `const` values exported by [`opendroneid_sys`] are defined as enums or as constants in
+//!   [`constants`]
+//! * Values whose meaning depends on a type field are enums whose variant is that type, for example
+//!   [`UasId`] and [`Height`]
+//! * Values the UA does not know are `None`
 //!
 //! Each message type implements the [`Message`] trait that allows decoding and encoding of messages.
-//! A special case is the [`UasData`] struct, this represents a group of messages which can be
-//! together in a MessagePack message.
+//! A special case is the [`UasData`] struct, which holds a group of messages that can be sent
+//! together in a message pack.
 
 use bytes::{Buf, BufMut};
 use num_derive::FromPrimitive;
@@ -215,6 +220,7 @@ pub enum AuthenticationType {
     SpecificAuthentication = sys::ODID_authtype_ODID_AUTH_SPECIFIC_AUTHENTICATION,
 }
 
+/// Type of the description in the [`SelfId`] message. Accessible through [`SelfId::desc_type`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum DescriptionType {
@@ -1420,16 +1426,19 @@ impl OperatorId {
     }
 }
 
-/// UAS data is a collection of Open Drone ID messages that together represent the state and identity of a UAS.
-/// It may contain multiple Basic ID and Auth messages, but at most one of each of the other message types.
+/// UAS data is a collection of Open Drone ID messages that together represent the state and
+/// identity of a UAS.
+///
+/// It may contain several Basic ID and Auth messages, but at most one of each of the other message
+/// types. Decode it from a single message or a message pack with [`UasData::decode`] and encode it
+/// as a message pack with [`UasData::encode_to_vec`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct UasData {
-    /// The Basic ID messages associated with this UAS data.
-    /// There may be multiple Basic ID messages, but at least one is required.
+    /// The Basic ID messages associated with this UAS data, at most one per [`IdType`].
     pub basic_id: Vec<BasicId>,
     /// The Location message associated with this UAS data, if available.
     pub location: Option<Location>,
-    /// The Auth messages associated with this UAS data.
+    /// The Auth messages associated with this UAS data, one per [`AuthPage`].
     pub auth: Vec<Auth>,
     /// The Self ID message associated with this UAS data, if available.
     pub self_id: Option<SelfId>,
@@ -1440,71 +1449,6 @@ pub struct UasData {
 }
 
 impl UasData {
-    /// Get the Basic ID messages associated with this UAS data.
-    pub fn basic_id(&self) -> &[BasicId] {
-        &self.basic_id
-    }
-
-    /// Set the Basic ID messages associated with this UAS data.
-    pub fn with_basic_id(mut self, basic_id: Vec<BasicId>) -> Self {
-        self.basic_id = basic_id;
-        self
-    }
-
-    /// Get the Location message associated with this UAS data, if available.
-    pub fn location(&self) -> Option<&Location> {
-        self.location.as_ref()
-    }
-
-    /// Set the Location message associated with this UAS data.
-    pub fn with_location(mut self, location: Option<Location>) -> Self {
-        self.location = location;
-        self
-    }
-
-    /// Get the Auth messages associated with this UAS data.
-    pub fn auth(&self) -> &[Auth] {
-        &self.auth
-    }
-
-    /// Set the Auth messages associated with this UAS data.
-    pub fn with_auth(mut self, auth: Vec<Auth>) -> Self {
-        self.auth = auth;
-        self
-    }
-
-    /// Get the Self ID message associated with this UAS data, if available.
-    pub fn self_id(&self) -> Option<&SelfId> {
-        self.self_id.as_ref()
-    }
-    /// Set the Self ID message associated with this UAS data.
-    pub fn with_self_id(mut self, self_id: Option<SelfId>) -> Self {
-        self.self_id = self_id;
-        self
-    }
-
-    /// Get the System message associated with this UAS data, if available.
-    pub fn system(&self) -> Option<&System> {
-        self.system.as_ref()
-    }
-
-    /// Set the System message associated with this UAS data.
-    pub fn with_system(mut self, system: Option<System>) -> Self {
-        self.system = system;
-        self
-    }
-
-    /// Get the Operator ID message associated with this UAS data, if available.
-    pub fn operator_id(&self) -> Option<&OperatorId> {
-        self.operator_id.as_ref()
-    }
-
-    /// Set the Operator ID message associated with this UAS data.
-    pub fn with_operator_id(mut self, operator_id: Option<OperatorId>) -> Self {
-        self.operator_id = operator_id;
-        self
-    }
-
     /// Decode UAS data from a single Open Drone ID message or a message pack in a buffer.
     ///
     /// Consumes the bytes of the message from the buffer, which does not need to be contiguous.
@@ -1620,6 +1564,10 @@ impl UasData {
         }
     }
 
+    /// Encodes the messages as a message pack.
+    ///
+    /// Returns an error if there is no message, if there are more than `ODID_PACK_MAX_MESSAGES`
+    /// messages, or if a message cannot be encoded.
     pub fn encode_to_vec(&self) -> Result<Vec<u8>, Error> {
         let mut message_pack_data = std::mem::MaybeUninit::<sys::ODID_MessagePack_data>::uninit();
         unsafe { sys::odid_initMessagePackData(message_pack_data.as_mut_ptr()) };
@@ -2216,15 +2164,15 @@ mod tests {
     const MESSAGE_SIZE: usize = sys::ODID_MESSAGE_SIZE as usize;
 
     fn uas_data() -> UasData {
-        UasData::default()
-            .with_basic_id(vec![basic_id(UasId::UtmAssignedUuid(Uuid::from_bytes(
-                UUID,
-            )))])
-            .with_location(Some(
+        UasData {
+            basic_id: vec![basic_id(UasId::UtmAssignedUuid(Uuid::from_bytes(UUID)))],
+            location: Some(
                 Location::default()
                     .with_height(Height::AboveTakeoff(42.0))
                     .unwrap(),
-            ))
+            ),
+            ..UasData::default()
+        }
     }
 
     fn assert_buffer_too_small(result: Result<UasData, Error>, remaining: usize, required: usize) {
@@ -2320,7 +2268,7 @@ mod tests {
         let mut buf = &encoded[..];
         let decoded = UasData::decode(&mut buf).unwrap();
 
-        assert_eq!(decoded.basic_id(), [message]);
+        assert_eq!(decoded.basic_id, [message]);
         assert_eq!(buf, [0xaa]);
     }
 
