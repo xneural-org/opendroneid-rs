@@ -31,12 +31,15 @@ pub fn set_c_string<const N: usize>(
 
 /// Convert a C string (null-terminated byte array) to a Rust `String`, stopping at the first null byte.
 pub fn c_string_to_rust(c_string: &[core::ffi::c_char]) -> String {
-    let bytes = c_string
-        .iter()
-        .take_while(|&&c| c != 0)
-        .map(|&c| c as u8)
-        .collect::<Vec<u8>>();
-    String::from_utf8_lossy(&bytes).into_owned()
+    let bytes = c_string.iter().map(|&c| c as u8).collect::<Vec<u8>>();
+    bytes_to_string(&bytes)
+}
+
+/// Convert bytes to a Rust `String`, stopping at the first null byte.
+/// Bytes that are not valid UTF-8 are replaced.
+pub fn bytes_to_string(bytes: &[u8]) -> String {
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
 #[cfg(test)]
