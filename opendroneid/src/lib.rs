@@ -1,12 +1,17 @@
 //! This crate defines Rust abstractions for the structs and enums exported by [`opendroneid_sys`]
 //! from the C-library.
 //!
-//! * Message types are implemented as a wrapper around the `ODID_*_data` structs from [opendroneid_sys`]
-//! * `const` values exported by [`opendroneid_sys`] are defined as enums or as constants in [`constants`]
+//! * Message types are implemented as a wrapper around the `ODID_*_data` structs from
+//!   [`opendroneid_sys`]
+//! * `const` values exported by [`opendroneid_sys`] are defined as enums or as constants in
+//!   [`constants`]
+//! * Values whose meaning depends on a type field are enums whose variant is that type, for example
+//!   [`UasId`] and [`Height`]
+//! * Values the UA does not know are `None`
 //!
 //! Each message type implements the [`Message`] trait that allows decoding and encoding of messages.
-//! A special case is the [`UasData`] struct, this represents a group of messages which can be
-//! together in a MessagePack message.
+//! A special case is the [`UasData`] struct, which holds a group of messages that can be sent
+//! together in a message pack.
 
 use bytes::{Buf, BufMut};
 use num_derive::FromPrimitive;
@@ -215,6 +220,7 @@ pub enum AuthenticationType {
     SpecificAuthentication = sys::ODID_authtype_ODID_AUTH_SPECIFIC_AUTHENTICATION,
 }
 
+/// Type of the description in the [`SelfId`] message. Accessible through [`SelfId::desc_type`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
 #[repr(u32)]
 pub enum DescriptionType {
@@ -428,14 +434,103 @@ impl OperatorLocation {
 }
 
 /// Position of the operator in an [`OperatorLocation`].
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct OperatorPosition {
-    /// Latitude in degrees. `0.0` together with a `longitude` of `0.0` is invalid or unknown.
-    pub latitude: f64,
-    /// Longitude in degrees. `0.0` together with a `latitude` of `0.0` is invalid or unknown.
-    pub longitude: f64,
-    /// Geodetic altitude above the WGS-84 ellipsoid in meters, `None` if invalid or unknown.
+    /// Coordinates of the operator, `None` if they are unknown.
+    pub coordinates: Option<Coordinates>,
+    /// Geodetic altitude above the WGS-84 ellipsoid in meters, `None` if it is unknown.
     pub altitude_geodetic: Option<f32>,
+}
+
+/// WGS-84 coordinates in degrees, in a [`Location`] or an [`OperatorPosition`].
+///
+/// The protocol sends unknown coordinates as 0°/0°, so they cannot be set as known coordinates.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Coordinates {
+    /// Latitude in degrees, [`MIN_LATITUDE`] to [`MAX_LATITUDE`].
+    pub latitude: f64,
+    /// Longitude in degrees, [`MIN_LONGITUDE`] to [`MAX_LONGITUDE`].
+    pub longitude: f64,
+}
+
+impl Coordinates {
+    /// Returns the coordinates, or `None` for 0°/0°, which marks unknown coordinates.
+    fn known(latitude: f64, longitude: f64) -> Option<Self> {
+        (latitude != 0.0 || longitude != 0.0).then_some(Coordinates {
+            latitude,
+            longitude,
+        })
+    }
+
+    /// Checks the coordinates and returns the latitude and longitude to store, 0°/0° for `None`.
+    fn checked(coordinates: Option<Self>) -> Result<(f64, f64), Error> {
+        let Some(Coordinates {
+            latitude,
+            longitude,
+        }) = coordinates
+        else {
+            return Ok((0.0, 0.0));
+        };
+        let latitude = checked(
+            "latitude",
+            Some(latitude),
+            MIN_LATITUDE as f64..=MAX_LATITUDE as f64,
+            0.0,
+        )?;
+        let longitude = checked(
+            "longitude",
+            Some(longitude),
+            MIN_LONGITUDE as f64..=MAX_LONGITUDE as f64,
+            0.0,
+        )?;
+        if latitude == 0.0 && longitude == 0.0 {
+            return Err(Error::InvalidValue {
+                field: "coordinates",
+                value: "0°/0° marks unknown coordinates".into(),
+            });
+        }
+        Ok((latitude, longitude))
+    }
+}
+
+/// Returns `value`, or `None` if it is the `unknown` marker of its field.
+fn known<T: PartialEq>(value: T, unknown: T) -> Option<T> {
+    (value != unknown).then_some(value)
+}
+
+/// Checks that `value` is in `range` and returns the value to store, `unknown` for `None`.
+fn checked<T: PartialOrd + ToString>(
+    field: &'static str,
+    value: Option<T>,
+    range: std::ops::RangeInclusive<T>,
+    unknown: T,
+) -> Result<T, Error> {
+    match value {
+        None => Ok(unknown),
+        Some(value) if range.contains(&value) => Ok(value),
+        Some(value) => Err(Error::InvalidValue {
+            field,
+            value: value.to_string(),
+        }),
+    }
+}
+
+/// Checks an altitude and returns the value to store, [`MIN_ALTITUDE`] for `None`.
+///
+/// [`MIN_ALTITUDE`] itself marks an unknown altitude, so it is not a valid known altitude.
+fn checked_altitude(field: &'static str, altitude: Option<f32>) -> Result<f32, Error> {
+    if altitude == Some(sys::INV_ALT as f32) {
+        return Err(Error::InvalidValue {
+            field,
+            value: format!("{} marks an unknown altitude", sys::INV_ALT),
+        });
+    }
+    checked(
+        field,
+        altitude,
+        MIN_ALTITUDE as f32..=MAX_ALTITUDE as f32,
+        sys::INV_ALT as f32,
+    )
 }
 
 /// Classification of the UA in the [`System`] message. The variant is the [`ClassificationType`].
@@ -460,6 +555,54 @@ impl Classification {
             Classification::Undeclared => ClassificationType::Undeclared,
             Classification::EuropeanUnion { .. } => ClassificationType::EuropeanUnion,
         }
+    }
+}
+
+/// Page of the authentication data in an [`Auth`] message. The variant is the page number.
+///
+/// The first page holds the fields that describe the whole authentication data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AuthPage {
+    /// Page 0.
+    First {
+        /// Index of the last page, below [`AUTH_MAX_PAGES`].
+        last_page_index: u8,
+        /// Length in bytes of the authentication data across all pages.
+        length: u8,
+        /// Seconds since 2019-01-01 00:00:00 UTC.
+        timestamp: u32,
+        /// First bytes of the authentication data.
+        data: [u8; AUTH_FIRST_PAGE_DATA_SIZE],
+    },
+    /// Pages 1 to `AUTH_MAX_PAGES - 1`.
+    Next {
+        /// Page number.
+        index: u8,
+        /// Following bytes of the authentication data.
+        data: [u8; AUTH_NEXT_PAGE_DATA_SIZE],
+    },
+}
+
+impl AuthPage {
+    /// Returns the page number.
+    pub fn index(&self) -> u8 {
+        match self {
+            AuthPage::First { .. } => 0,
+            AuthPage::Next { index, .. } => *index,
+        }
+    }
+
+    /// Returns the bytes of the authentication data on this page.
+    pub fn data(&self) -> &[u8] {
+        match self {
+            AuthPage::First { data, .. } => data,
+            AuthPage::Next { data, .. } => data,
+        }
+    }
+
+    /// Returns how many bytes of authentication data fit in pages 0 to `last_page_index`.
+    fn capacity(last_page_index: u8) -> usize {
+        AUTH_FIRST_PAGE_DATA_SIZE + last_page_index as usize * AUTH_NEXT_PAGE_DATA_SIZE
     }
 }
 
@@ -585,28 +728,45 @@ impl BasicId {
 macros::impl_message!(
     /// Location message as defined in the underlying C library.
     ///
+    /// Values the UA does not know are `None`. A new message has every such value unknown.
+    ///
     /// ```rust
-    /// use opendroneid::Location;
+    /// use opendroneid::{Coordinates, Location};
     ///
     /// // Create a new Location message with default values.
     /// let location = Location::default()
     ///     // Set fields of the Location message using the builder pattern.
     ///     .with_status(opendroneid::Status::Airborne)
-    ///     .with_latitude(37.7749)
-    ///     .expect("Invalid latitude value")
-    ///     .with_longitude(-77.4194)
-    ///     .expect("Invalid longitude value")
+    ///     .with_coordinates(Coordinates { latitude: 37.7749, longitude: -77.4194 })
+    ///     .expect("Invalid coordinates")
     ///     .with_direction(90.0)
     ///     .expect("Invalid direction value")
-    ///     .with_speed_horizontal(5.0);
+    ///     .with_speed_horizontal(5.0)
+    ///     .expect("Invalid speed value");
+    ///
+    /// assert_eq!(location.direction(), Some(90.0));
+    /// assert_eq!(location.altitude_geodetic(), None);
     /// ```
     Location,
     sys::ODID_Location_data,
     sys::ODID_Location_encoded,
-    sys::odid_initLocationData,
+    init_location_data,
     sys::encodeLocationMessage,
     sys::decodeLocationMessage
 );
+
+/// Initializes the Location data like `odid_initLocationData` and also marks the timestamp as
+/// unknown, which the C library leaves at 0 seconds.
+///
+/// # Safety
+///
+/// `data` must be a valid pointer to an `ODID_Location_data`.
+unsafe fn init_location_data(data: *mut sys::ODID_Location_data) {
+    unsafe {
+        sys::odid_initLocationData(data);
+        (*data).TimeStamp = sys::INV_TIMESTAMP as f32;
+    }
+}
 
 impl Location {
     /// Returns the status of the message, or an [`Error`] if the value is invalid.
@@ -621,145 +781,103 @@ impl Location {
         self.data.Status = status as u32;
         self
     }
-    /// Returns the direction of the UA in degrees from north, or `None` if the value is invalid.
+    /// Returns the direction of the UA in degrees clockwise from true north, or `None` if it is
+    /// unknown.
     pub fn direction(&self) -> Option<f32> {
-        if self.data.Direction == sys::INV_DIR as f32 {
-            None
-        } else {
-            Some(self.data.Direction)
-        }
+        known(self.data.Direction, sys::INV_DIR as f32)
     }
-    /// Sets the direction of the UA in degrees from north.
-    pub fn with_direction(mut self, direction: f32) -> Result<Self, Error> {
-        if direction < MIN_DIRECTION as f32 || direction > MAX_DIRECTION as f32 {
-            return Err(Error::InvalidValue {
-                field: "direction",
-                value: direction.to_string(),
-            });
-        }
-        self.data.Direction = direction;
+    /// Sets the direction of the UA in degrees clockwise from true north, `None` if it is unknown.
+    /// Returns an error if the direction is out of the valid range defined by the protocol.
+    pub fn with_direction(mut self, direction: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.Direction = checked(
+            "direction",
+            direction.into(),
+            MIN_DIRECTION as f32..=MAX_DIRECTION as f32,
+            sys::INV_DIR as f32,
+        )?;
         Ok(self)
     }
-    /// Returns the horizontal speed of the UA in m/s, or `None` if the value is invalid.
+    /// Returns the horizontal speed of the UA in m/s, or `None` if it is unknown.
     pub fn speed_horizontal(&self) -> Option<f32> {
-        if self.data.SpeedHorizontal == sys::INV_SPEED_H as f32 {
-            None
-        } else {
-            Some(self.data.SpeedHorizontal)
-        }
+        known(self.data.SpeedHorizontal, sys::INV_SPEED_H as f32)
     }
-    /// Sets the horizontal speed of the UA in m/s.
+    /// Sets the horizontal speed of the UA in m/s, `None` if it is unknown.
     /// Returns an error if the speed is out of the valid range defined by the protocol.
-    pub fn with_speed_horizontal(mut self, speed: f32) -> Result<Self, Error> {
-        if speed < MIN_SPEED_HORIZONTAL as f32 || speed > MAX_SPEED_HORIZONTAL as f32 {
-            return Err(Error::InvalidValue {
-                field: "speed_horizontal",
-                value: speed.to_string(),
-            });
-        }
-        self.data.SpeedHorizontal = speed;
+    pub fn with_speed_horizontal(mut self, speed: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.SpeedHorizontal = checked(
+            "speed_horizontal",
+            speed.into(),
+            MIN_SPEED_HORIZONTAL as f32..=MAX_SPEED_HORIZONTAL as f32,
+            sys::INV_SPEED_H as f32,
+        )?;
         Ok(self)
     }
-    /// Returns the vertical speed of the UA in m/s, or `None` if the value is invalid.
+    /// Returns the vertical speed of the UA in m/s, positive upwards, or `None` if it is unknown.
     pub fn speed_vertical(&self) -> Option<f32> {
-        if self.data.SpeedVertical == sys::INV_SPEED_V as f32 {
-            None
-        } else {
-            Some(self.data.SpeedVertical)
-        }
+        known(self.data.SpeedVertical, sys::INV_SPEED_V as f32)
     }
-    /// Sets the vertical speed of the UA in m/s.
-    pub fn with_speed_vertical(mut self, speed: f32) -> Result<Self, Error> {
-        if speed < MIN_SPEED_VERTICAL as f32 || speed > MAX_SPEED_VERTICAL as f32 {
-            return Err(Error::InvalidValue {
-                field: "speed_vertical",
-                value: speed.to_string(),
-            });
-        }
-        self.data.SpeedVertical = speed;
+    /// Sets the vertical speed of the UA in m/s, positive upwards, `None` if it is unknown.
+    /// Returns an error if the speed is out of the valid range defined by the protocol.
+    pub fn with_speed_vertical(mut self, speed: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.SpeedVertical = checked(
+            "speed_vertical",
+            speed.into(),
+            MIN_SPEED_VERTICAL as f32..=MAX_SPEED_VERTICAL as f32,
+            sys::INV_SPEED_V as f32,
+        )?;
         Ok(self)
     }
-    /// Returns the latitude of the UA in degrees.
-    pub fn latitude(&self) -> f64 {
-        self.data.Latitude
+    /// Returns the coordinates of the UA, or `None` if they are unknown.
+    pub fn coordinates(&self) -> Option<Coordinates> {
+        Coordinates::known(self.data.Latitude, self.data.Longitude)
     }
-    /// Sets the latitude of the UA in degrees.
-    /// Returns an error if the latitude is out of the valid range defined by the protocol.
-    pub fn with_latitude(mut self, latitude: f64) -> Result<Self, Error> {
-        if latitude < MIN_LATITUDE as f64 || latitude > MAX_LATITUDE as f64 {
-            return Err(Error::InvalidValue {
-                field: "latitude",
-                value: latitude.to_string(),
-            });
-        }
-        self.data.Latitude = latitude;
+    /// Sets the coordinates of the UA, `None` if they are unknown.
+    /// Returns an error if a coordinate is out of the valid range defined by the protocol, or for
+    /// 0°/0°, which marks unknown coordinates.
+    pub fn with_coordinates(
+        mut self,
+        coordinates: impl Into<Option<Coordinates>>,
+    ) -> Result<Self, Error> {
+        (self.data.Latitude, self.data.Longitude) = Coordinates::checked(coordinates.into())?;
         Ok(self)
     }
-    /// Returns the longitude of the UA in degrees.
-    pub fn longitude(&self) -> f64 {
-        self.data.Longitude
-    }
-    /// Sets the longitude of the UA in degrees.
-    /// Returns an error if the longitude is out of the valid range defined by the protocol.
-    pub fn with_longitude(mut self, longitude: f64) -> Result<Self, Error> {
-        if longitude < MIN_LONGITUDE as f64 || longitude > MAX_LONGITUDE as f64 {
-            return Err(Error::InvalidValue {
-                field: "longitude",
-                value: longitude.to_string(),
-            });
-        }
-        self.data.Longitude = longitude;
-        Ok(self)
-    }
-    /// Returns the barometric altitude of the UA in meters, or `None` if the value is invalid.
+    /// Returns the barometric altitude of the UA in meters, or `None` if it is unknown.
     ///
     /// The barometric altitude is the uncorrected barometric pressure altitude
     /// (based on reference standard 29.92 inHg, 1013.25 mb).
     pub fn altitude_barometric(&self) -> Option<f32> {
-        if self.data.AltitudeBaro == sys::INV_ALT as f32 {
-            None
-        } else {
-            Some(self.data.AltitudeBaro)
-        }
+        known(self.data.AltitudeBaro, sys::INV_ALT as f32)
     }
-    /// Sets the barometric altitude of the UA in meters.
-    /// Returns an error if the altitude is out of the valid range defined by the protocol.
-    pub fn with_altitude_barometric(mut self, altitude: f32) -> Result<Self, Error> {
-        if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "altitude_barometric",
-                value: altitude.to_string(),
-            });
-        }
-        self.data.AltitudeBaro = altitude;
+    /// Sets the barometric altitude of the UA in meters, `None` if it is unknown.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown altitude.
+    pub fn with_altitude_barometric(
+        mut self,
+        altitude: impl Into<Option<f32>>,
+    ) -> Result<Self, Error> {
+        self.data.AltitudeBaro = checked_altitude("altitude_barometric", altitude.into())?;
         Ok(self)
     }
-    /// Returns the geodetic altitude of the UA in meters, or `None` if the value is invalid.
+    /// Returns the geodetic altitude of the UA in meters, or `None` if it is unknown.
     ///
     /// The geodetic altitude is the distance above or below the surface of the WGS-84 ellipsoid.
     pub fn altitude_geodetic(&self) -> Option<f32> {
-        if self.data.AltitudeGeo == sys::INV_ALT as f32 {
-            None
-        } else {
-            Some(self.data.AltitudeGeo)
-        }
+        known(self.data.AltitudeGeo, sys::INV_ALT as f32)
     }
-    /// Sets the geodetic altitude of the UA in meters.
-    /// Returns an error if the altitude is out of the valid range defined by the protocol.
+    /// Sets the geodetic altitude of the UA in meters, `None` if it is unknown.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown altitude.
     ///
     /// The geodetic altitude is the distance above or below the surface of the WGS-84 ellipsoid.
-    pub fn with_altitude_geodetic(mut self, altitude: f32) -> Result<Self, Error> {
-        if altitude < sys::MIN_ALT as f32 || altitude > sys::MAX_ALT as f32 {
-            return Err(Error::InvalidValue {
-                field: "altitude_geodetic",
-                value: altitude.to_string(),
-            });
-        }
-        self.data.AltitudeGeo = altitude;
+    pub fn with_altitude_geodetic(
+        mut self,
+        altitude: impl Into<Option<f32>>,
+    ) -> Result<Self, Error> {
+        self.data.AltitudeGeo = checked_altitude("altitude_geodetic", altitude.into())?;
         Ok(self)
     }
-    /// Returns the height of the UA, `None` if the height is invalid or unknown, or an [`Error`] if
-    /// the height reference is invalid.
+    /// Returns the height of the UA, `None` if it is unknown, or an [`Error`] if the height
+    /// reference is invalid.
     ///
     /// The variant of the [`Height`] is the height reference of the message.
     pub fn height(&self) -> Result<Option<Height>, Error> {
@@ -768,26 +886,22 @@ impl Location {
                 field: "HeightType",
                 value: self.data.HeightType,
             })?;
-        if self.data.Height == sys::INV_ALT as f32 {
-            return Ok(None);
-        }
-        Ok(Some(match reference {
-            HeightReference::Takeoff => Height::AboveTakeoff(self.data.Height),
-            HeightReference::Ground => Height::AboveGroundLevel(self.data.Height),
-        }))
+        Ok(
+            known(self.data.Height, sys::INV_ALT as f32).map(|height| match reference {
+                HeightReference::Takeoff => Height::AboveTakeoff(height),
+                HeightReference::Ground => Height::AboveGroundLevel(height),
+            }),
+        )
     }
-    /// Sets the height of the UA and its reference.
-    /// Returns an error if the height is out of the valid range defined by the protocol.
-    pub fn with_height(mut self, height: Height) -> Result<Self, Error> {
-        let value = height.value();
-        if value < MIN_ALTITUDE as f32 || value > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "height",
-                value: value.to_string(),
-            });
-        }
-        self.data.HeightType = height.reference() as u32;
-        self.data.Height = value;
+    /// Sets the height of the UA and its reference, `None` if it is unknown.
+    /// Returns an error if the height is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown height.
+    pub fn with_height(mut self, height: impl Into<Option<Height>>) -> Result<Self, Error> {
+        let height = height.into();
+        self.data.Height = checked_altitude("height", height.map(|height| height.value()))?;
+        // An unknown height has no reference, so store the default one.
+        let reference = height.map_or(HeightReference::default(), |height| height.reference());
+        self.data.HeightType = reference as u32;
         Ok(self)
     }
     /// Returns the horizontal accuracy of the location information, or an [`Error`] if the value is invalid.
@@ -853,125 +967,102 @@ impl Location {
 
     /// Returns the timestamp as a floating point number of seconds since the start of the hour
     pub fn timestamp(&self) -> Option<f32> {
-        if self.data.TimeStamp == sys::INV_TIMESTAMP as f32 {
-            None
-        } else {
-            Some(self.data.TimeStamp)
-        }
+        known(self.data.TimeStamp, sys::INV_TIMESTAMP as f32)
     }
 
-    /// Sets the timestamp as a floating point number of seconds since the start of the hour.
+    /// Sets the timestamp as a floating point number of seconds since the start of the hour,
+    /// `None` if it is unknown.
     /// Returns an error if the timestamp is out of the valid range defined by the protocol.
-    pub fn with_timestamp(mut self, timestamp: f32) -> Result<Self, Error> {
-        if timestamp < 0 as f32 || timestamp > sys::MAX_TIMESTAMP as f32 {
-            return Err(Error::InvalidValue {
-                field: "timestamp",
-                value: timestamp.to_string(),
-            });
-        }
-        self.data.TimeStamp = timestamp;
+    pub fn with_timestamp(mut self, timestamp: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.TimeStamp = checked(
+            "timestamp",
+            timestamp.into(),
+            0.0..=sys::MAX_TIMESTAMP as f32,
+            sys::INV_TIMESTAMP as f32,
+        )?;
         Ok(self)
     }
 
-    /// Returns the timestamp as a `chrono::DateTime<chrono::Utc>`, or `None` if the value is invalid.
+    /// Returns the timestamp as the time nearest to `reference`, or `None` if it is unknown.
     ///
-    /// <div class="warning">
-    /// The value of the timestamp is only valid within one hour of timestamp creation.
-    /// The internally stored value is relative to the start of the current hour, so, if more than
-    /// one hour has passed since the timestamp was created, the returned value may be inaccurate.
-    /// </div>
-    ///
+    /// The message only holds the seconds since the start of the hour. The hour is chosen so that
+    /// the time is at most half an hour away from `reference`, usually the time the message was
+    /// received. This also holds when the clock of the UA is slightly ahead of the receiver.
     #[cfg(feature = "chrono")]
-    pub fn chrono_timestamp(&self) -> Option<Result<chrono::DateTime<chrono::Utc>, Error>> {
-        if self.data.TimeStamp == sys::INV_TIMESTAMP as f32 {
-            None
-        } else {
-            Some(decode_timestamp(self.data.TimeStamp))
+    pub fn chrono_timestamp(
+        &self,
+        reference: chrono::DateTime<chrono::Utc>,
+    ) -> Option<chrono::DateTime<chrono::Utc>> {
+        let offset_ms = (f64::from(self.timestamp()?) * 1000.0).round() as i64;
+        let reference_ms = reference.timestamp_millis();
+        let mut time_ms = reference_ms - reference_ms.rem_euclid(HOUR_MS) + offset_ms;
+        if time_ms - reference_ms > HOUR_MS / 2 {
+            time_ms -= HOUR_MS;
+        } else if reference_ms - time_ms > HOUR_MS / 2 {
+            time_ms += HOUR_MS;
         }
+        chrono::DateTime::from_timestamp_millis(time_ms)
     }
-    /// Sets the timestamp using a `chrono::DateTime<chrono::Utc>`.
+
+    /// Sets the timestamp to the seconds of `time` since the start of its hour.
     #[cfg(feature = "chrono")]
-    pub fn with_chrono_timestamp(mut self, timestamp: chrono::DateTime<chrono::Utc>) -> Self {
-        self.data.TimeStamp = encode_timestamp(timestamp);
+    pub fn with_chrono_timestamp(mut self, time: chrono::DateTime<chrono::Utc>) -> Self {
+        self.data.TimeStamp = time.timestamp_millis().rem_euclid(HOUR_MS) as f32 / 1000.0;
         self
     }
 }
 
+/// Number of milliseconds in an hour, the range of the [`Location`] timestamp.
 #[cfg(feature = "chrono")]
-fn decode_timestamp(value: f32) -> Result<chrono::DateTime<chrono::Utc>, Error> {
-    use chrono::Timelike;
-    let now = chrono::Utc::now();
+const HOUR_MS: i64 = 3_600_000;
 
-    let this_hour_start = now
-        .with_minute(0)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.minute",
-            value: "0".to_string(),
-        })?
-        .with_second(0)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.second",
-            value: "0".to_string(),
-        })?
-        .with_nanosecond(0)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.nanosecond",
-            value: "0".to_string(),
-        })?;
-    let mins = now.minute();
-    let secs = now.second();
-    let nanos = now.nanosecond();
-    let now_secs = (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0);
+/// Number of seconds from 1970-01-01 to 2019-01-01, the epoch of the Auth and System timestamps.
+#[cfg(feature = "chrono")]
+const ODID_EPOCH_OFFSET: i64 = 1546300800;
 
-    let base_hour = if value > now_secs {
-        this_hour_start - chrono::Duration::hours(1)
-    } else {
-        this_hour_start
-    };
-
-    base_hour
-        .with_minute((value / 60.0) as u32)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.minute",
-            value: value.to_string(),
-        })?
-        .with_second((value % 60.0) as u32)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.second",
-            value: value.to_string(),
-        })?
-        .with_nanosecond(((value % 1.0) * 1_000_000_000.0) as u32)
-        .ok_or(Error::InvalidValue {
-            field: "timestamp.nanosecond",
-            value: value.to_string(),
-        })
+/// Converts seconds since 2019-01-01 00:00:00 UTC, the timestamp of an [`AuthPage::First`] and of
+/// a [`System`] message, to a `chrono::DateTime<Utc>`.
+#[cfg(feature = "chrono")]
+pub fn from_odid_epoch(seconds: u32) -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::from_timestamp(seconds as i64 + ODID_EPOCH_OFFSET, 0)
+        .expect("every u32 offset from 2019 is a valid date")
 }
 
+/// Converts a `chrono::DateTime<Utc>` to whole seconds since 2019-01-01 00:00:00 UTC, the timestamp
+/// of an [`AuthPage::First`] and of a [`System`] message.
+///
+/// Returns an error for a time before 2019 or after the range of a `u32`.
 #[cfg(feature = "chrono")]
-fn encode_timestamp(value: chrono::DateTime<chrono::Utc>) -> f32 {
-    use chrono::Timelike;
-    let mins = value.minute();
-    let secs = value.second();
-    let nanos = value.nanosecond();
-    (mins as f32 * 60.0) + (secs as f32) + (nanos as f32 / 1_000_000_000.0)
+pub fn to_odid_epoch(time: chrono::DateTime<chrono::Utc>) -> Result<u32, Error> {
+    u32::try_from(time.timestamp() - ODID_EPOCH_OFFSET).map_err(|_| Error::InvalidValue {
+        field: "timestamp",
+        value: time.to_rfc3339(),
+    })
 }
-
-/// Number of seconds from 1970-01-01 to 2019-01-01
-#[cfg(feature = "chrono")]
-const EPOCH_OFFSET: i64 = 1546300800;
 
 macros::impl_message!(
     /// The Authentication Message defines a field that provides a means for authenticating the
     /// identity of the UA sending the message.
     ///
-    /// ```rust
-    /// use opendroneid::Auth;
+    /// The authentication data is split across up to [`AUTH_MAX_PAGES`] messages, one per
+    /// [`AuthPage`].
     ///
-    /// // Create a new Auth message with default values.
+    /// ```rust
+    /// use opendroneid::{Auth, AuthPage, AUTH_FIRST_PAGE_DATA_SIZE};
+    ///
+    /// // Create the first page of an Auth message.
     /// let auth = Auth::default()
     ///     // Set fields of the Auth message using the builder pattern.
     ///     .with_auth_type(opendroneid::AuthenticationType::UasIdSignature)
-    ///     .with_timestamp(12345);
+    ///     .with_page(AuthPage::First {
+    ///         last_page_index: 0,
+    ///         length: 4,
+    ///         timestamp: 12345,
+    ///         data: [0xde, 0xad, 0xbe, 0xef, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ///     })
+    ///     .expect("Invalid Auth page");
+    ///
+    /// assert_eq!(auth.page().data().len(), AUTH_FIRST_PAGE_DATA_SIZE);
     /// ```
     Auth,
     sys::ODID_Auth_data,
@@ -982,21 +1073,6 @@ macros::impl_message!(
 );
 
 impl Auth {
-    /// Returns the authentication data page index.
-    pub fn data_page(&self) -> u8 {
-        self.data.DataPage
-    }
-    /// Sets the authentication data page index.
-    pub fn with_data_page(mut self, data_page: u8) -> Result<Self, Error> {
-        if data_page >= sys::ODID_AUTH_MAX_PAGES as u8 {
-            return Err(Error::InvalidValue {
-                field: "data_page",
-                value: data_page.to_string(),
-            });
-        }
-        self.data.DataPage = data_page;
-        Ok(self)
-    }
     /// Returns the authentication type of the message, or an [`Error`] if the value is invalid.
     pub fn auth_type(&self) -> Result<AuthenticationType, Error> {
         AuthenticationType::from_u32(self.data.AuthType).ok_or(Error::EnumMappingError {
@@ -1011,98 +1087,86 @@ impl Auth {
         self
     }
 
-    /// Returns the last authentication page index.
-    pub fn last_page_index(&self) -> u8 {
-        self.data.LastPageIndex
-    }
-
-    /// Sets the last authentication page index.
-    pub fn with_last_page_index(mut self, last_page_index: u8) -> Result<Self, Error> {
-        if last_page_index >= sys::ODID_AUTH_MAX_PAGES as u8 {
-            return Err(Error::InvalidValue {
-                field: "last_page_index",
-                value: last_page_index.to_string(),
-            });
-        }
-
-        if self.data.DataPage == 0 {
-            let max_len = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE
-                + last_page_index as u32 * sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE;
-            if self.data.Length as u32 > max_len {
-                return Err(Error::InvalidValue {
-                    field: "length",
-                    value: self.data.Length.to_string(),
-                });
-            }
-        }
-
-        self.data.LastPageIndex = last_page_index;
-        Ok(self)
-    }
-
-    /// Returns the authentication data length in bytes.
-    pub fn length(&self) -> u8 {
-        self.data.Length
-    }
-
-    /// Sets the authentication data length in bytes.
-    pub fn with_length(mut self, length: u8) -> Result<Self, Error> {
-        if self.data.DataPage == 0 {
-            let max_len = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE
-                + self.data.LastPageIndex as u32 * sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE;
-            if length as u32 > max_len {
-                return Err(Error::InvalidValue {
-                    field: "length",
-                    value: length.to_string(),
-                });
-            }
-        }
-
-        self.data.Length = length;
-        Ok(self)
-    }
-
-    /// Returns the authentication timestamp value.
+    /// Returns the page of the authentication data in the message.
     ///
-    /// 32 bit Unix Timestamp (UTC) in seconds since (epoch) 00:00:00 01/01/2019 (to re-
-    /// late back to standard Unix timestamp, add 1546300800 to the common epoch of
-    /// 00:00:00 01/01/1970)
-    pub fn timestamp(&self) -> u32 {
-        self.data.Timestamp
+    /// The variant of the [`AuthPage`] is the page number of the message.
+    pub fn page(&self) -> AuthPage {
+        if self.data.DataPage == 0 {
+            let mut data = [0u8; AUTH_FIRST_PAGE_DATA_SIZE];
+            data.copy_from_slice(&self.data.AuthData[..AUTH_FIRST_PAGE_DATA_SIZE]);
+            AuthPage::First {
+                last_page_index: self.data.LastPageIndex,
+                length: self.data.Length,
+                timestamp: self.data.Timestamp,
+                data,
+            }
+        } else {
+            let mut data = [0u8; AUTH_NEXT_PAGE_DATA_SIZE];
+            data.copy_from_slice(&self.data.AuthData[..AUTH_NEXT_PAGE_DATA_SIZE]);
+            AuthPage::Next {
+                index: self.data.DataPage,
+                data,
+            }
+        }
     }
 
-    /// Sets the authentication timestamp value.
-    pub fn with_timestamp(mut self, timestamp: u32) -> Self {
-        self.data.Timestamp = timestamp;
-        self
+    /// Sets the page of the authentication data and its page number.
+    ///
+    /// Returns an error if a page index is out of range, or if the `length` of the first page
+    /// exceeds the data that fits in the pages up to its `last_page_index`.
+    pub fn with_page(mut self, page: AuthPage) -> Result<Self, Error> {
+        self.data.AuthData.fill(0);
+        match page {
+            AuthPage::First {
+                last_page_index,
+                length,
+                timestamp,
+                data,
+            } => {
+                if last_page_index as usize >= AUTH_MAX_PAGES {
+                    return Err(Error::InvalidValue {
+                        field: "last_page_index",
+                        value: last_page_index.to_string(),
+                    });
+                }
+                if length as usize > AuthPage::capacity(last_page_index) {
+                    return Err(Error::InvalidValue {
+                        field: "length",
+                        value: length.to_string(),
+                    });
+                }
+                self.data.DataPage = 0;
+                self.data.LastPageIndex = last_page_index;
+                self.data.Length = length;
+                self.data.Timestamp = timestamp;
+                self.data.AuthData[..AUTH_FIRST_PAGE_DATA_SIZE].copy_from_slice(&data);
+            }
+            AuthPage::Next { index, data } => {
+                if index == 0 || index as usize >= AUTH_MAX_PAGES {
+                    return Err(Error::InvalidValue {
+                        field: "index",
+                        value: index.to_string(),
+                    });
+                }
+                // Only the first page carries these fields.
+                self.data.DataPage = index;
+                self.data.LastPageIndex = 0;
+                self.data.Length = 0;
+                self.data.Timestamp = 0;
+                self.data.AuthData[..AUTH_NEXT_PAGE_DATA_SIZE].copy_from_slice(&data);
+            }
+        }
+        Ok(self)
     }
 
+    /// Returns the timestamp of the first page as a `chrono::DateTime<Utc>`, or `None` for a
+    /// later page.
     #[cfg(feature = "chrono")]
-    /// Returns the authentication timestamp as a `chrono::DateTime<Utc>`.
-    /// Returns None if the timestamp value is invalid.
     pub fn chrono_timestamp(&self) -> Option<chrono::DateTime<chrono::Utc>> {
-        chrono::DateTime::<chrono::Utc>::from_timestamp(
-            self.data.Timestamp as i64 + EPOCH_OFFSET,
-            0,
-        )
-    }
-
-    #[cfg(feature = "chrono")]
-    /// Sets the authentication timestamp using a `chrono::DateTime<Utc>`.
-    pub fn with_chrono_timestamp(mut self, timestamp: chrono::DateTime<chrono::Utc>) -> Self {
-        self.data.Timestamp = (timestamp.timestamp() - EPOCH_OFFSET) as u32;
-        self
-    }
-
-    /// Returns the authentication data payload bytes.
-    pub fn auth_data(&self) -> &[u8; 24] {
-        &self.data.AuthData
-    }
-
-    /// Sets the authentication data payload bytes.
-    pub fn with_auth_data(mut self, auth_data: [u8; 24]) -> Self {
-        self.data.AuthData = auth_data;
-        self
+        match self.page() {
+            AuthPage::First { timestamp, .. } => Some(from_odid_epoch(timestamp)),
+            AuthPage::Next { .. } => None,
+        }
     }
 }
 
@@ -1179,10 +1243,11 @@ impl System {
             },
         )?;
         let position = OperatorPosition {
-            latitude: self.data.OperatorLatitude,
-            longitude: self.data.OperatorLongitude,
-            altitude_geodetic: (self.data.OperatorAltitudeGeo != sys::INV_ALT as f32)
-                .then_some(self.data.OperatorAltitudeGeo),
+            coordinates: Coordinates::known(
+                self.data.OperatorLatitude,
+                self.data.OperatorLongitude,
+            ),
+            altitude_geodetic: known(self.data.OperatorAltitudeGeo, sys::INV_ALT as f32),
         };
         Ok(match location_type {
             OperatorLocationType::Takeoff => OperatorLocation::Takeoff(position),
@@ -1193,32 +1258,14 @@ impl System {
 
     /// Sets the location of the operator and its type.
     /// Returns an error if a coordinate or the altitude is out of the valid range defined by the
-    /// protocol.
+    /// protocol, or for 0°/0° or [`MIN_ALTITUDE`], which mark unknown values.
     pub fn with_operator_location(mut self, location: OperatorLocation) -> Result<Self, Error> {
         let position = location.position();
-        if position.latitude < MIN_LATITUDE as f64 || position.latitude > MAX_LATITUDE as f64 {
-            return Err(Error::InvalidValue {
-                field: "operator_latitude",
-                value: position.latitude.to_string(),
-            });
-        }
-        if position.longitude < MIN_LONGITUDE as f64 || position.longitude > MAX_LONGITUDE as f64 {
-            return Err(Error::InvalidValue {
-                field: "operator_longitude",
-                value: position.longitude.to_string(),
-            });
-        }
-        let altitude = position.altitude_geodetic.unwrap_or(sys::INV_ALT as f32);
-        if altitude < MIN_ALTITUDE as f32 || altitude > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "operator_altitude_geodetic",
-                value: altitude.to_string(),
-            });
-        }
+        (self.data.OperatorLatitude, self.data.OperatorLongitude) =
+            Coordinates::checked(position.coordinates)?;
+        self.data.OperatorAltitudeGeo =
+            checked_altitude("operator_altitude_geodetic", position.altitude_geodetic)?;
         self.data.OperatorLocationType = location.location_type() as u32;
-        self.data.OperatorLatitude = position.latitude;
-        self.data.OperatorLongitude = position.longitude;
-        self.data.OperatorAltitudeGeo = altitude;
         Ok(self)
     }
 
@@ -1289,46 +1336,42 @@ impl System {
         Ok(self)
     }
 
-    /// Returns the area ceiling altitude in meters.
-    pub fn area_ceiling(&self) -> f32 {
-        self.data.AreaCeiling
+    /// Returns the geodetic altitude of the area ceiling in meters, or `None` if it is unknown.
+    pub fn area_ceiling(&self) -> Option<f32> {
+        known(self.data.AreaCeiling, sys::INV_ALT as f32)
     }
 
-    /// Sets the area ceiling altitude in meters.
-    pub fn with_area_ceiling(mut self, area_ceiling: f32) -> Result<Self, Error> {
-        if area_ceiling < MIN_ALTITUDE as f32 || area_ceiling > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "area_ceiling",
-                value: area_ceiling.to_string(),
-            });
-        }
-        self.data.AreaCeiling = area_ceiling;
+    /// Sets the geodetic altitude of the area ceiling in meters, `None` if it is unknown.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown altitude.
+    pub fn with_area_ceiling(mut self, altitude: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.AreaCeiling = checked_altitude("area_ceiling", altitude.into())?;
         Ok(self)
     }
 
-    /// Returns the area floor altitude in meters.
-    pub fn area_floor(&self) -> f32 {
-        self.data.AreaFloor
+    /// Returns the geodetic altitude of the area floor in meters, or `None` if it is unknown.
+    pub fn area_floor(&self) -> Option<f32> {
+        known(self.data.AreaFloor, sys::INV_ALT as f32)
     }
 
-    /// Sets the area floor altitude in meters.
-    pub fn with_area_floor(mut self, area_floor: f32) -> Result<Self, Error> {
-        if area_floor < MIN_ALTITUDE as f32 || area_floor > MAX_ALTITUDE as f32 {
-            return Err(Error::InvalidValue {
-                field: "area_floor",
-                value: area_floor.to_string(),
-            });
-        }
-        self.data.AreaFloor = area_floor;
+    /// Sets the geodetic altitude of the area floor in meters, `None` if it is unknown.
+    /// Returns an error if the altitude is out of the valid range defined by the protocol, or for
+    /// [`MIN_ALTITUDE`], which marks an unknown altitude.
+    pub fn with_area_floor(mut self, altitude: impl Into<Option<f32>>) -> Result<Self, Error> {
+        self.data.AreaFloor = checked_altitude("area_floor", altitude.into())?;
         Ok(self)
     }
 
-    /// Returns the timestamp value.
+    /// Returns the timestamp in seconds since 2019-01-01 00:00:00 UTC.
+    ///
+    /// Convert it with `from_odid_epoch` (feature `chrono`).
     pub fn timestamp(&self) -> u32 {
         self.data.Timestamp
     }
 
-    /// Sets the timestamp value.
+    /// Sets the timestamp in seconds since 2019-01-01 00:00:00 UTC.
+    ///
+    /// Convert a time with `to_odid_epoch` (feature `chrono`).
     pub fn with_timestamp(mut self, timestamp: u32) -> Self {
         self.data.Timestamp = timestamp;
         self
@@ -1383,16 +1426,19 @@ impl OperatorId {
     }
 }
 
-/// UAS data is a collection of Open Drone ID messages that together represent the state and identity of a UAS.
-/// It may contain multiple Basic ID and Auth messages, but at most one of each of the other message types.
+/// UAS data is a collection of Open Drone ID messages that together represent the state and
+/// identity of a UAS.
+///
+/// It may contain several Basic ID and Auth messages, but at most one of each of the other message
+/// types. Decode it from a single message or a message pack with [`UasData::decode`] and encode it
+/// as a message pack with [`UasData::encode_to_vec`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct UasData {
-    /// The Basic ID messages associated with this UAS data.
-    /// There may be multiple Basic ID messages, but at least one is required.
+    /// The Basic ID messages associated with this UAS data, at most one per [`IdType`].
     pub basic_id: Vec<BasicId>,
     /// The Location message associated with this UAS data, if available.
     pub location: Option<Location>,
-    /// The Auth messages associated with this UAS data.
+    /// The Auth messages associated with this UAS data, one per [`AuthPage`].
     pub auth: Vec<Auth>,
     /// The Self ID message associated with this UAS data, if available.
     pub self_id: Option<SelfId>,
@@ -1403,71 +1449,6 @@ pub struct UasData {
 }
 
 impl UasData {
-    /// Get the Basic ID messages associated with this UAS data.
-    pub fn basic_id(&self) -> &[BasicId] {
-        &self.basic_id
-    }
-
-    /// Set the Basic ID messages associated with this UAS data.
-    pub fn with_basic_id(mut self, basic_id: Vec<BasicId>) -> Self {
-        self.basic_id = basic_id;
-        self
-    }
-
-    /// Get the Location message associated with this UAS data, if available.
-    pub fn location(&self) -> Option<&Location> {
-        self.location.as_ref()
-    }
-
-    /// Set the Location message associated with this UAS data.
-    pub fn with_location(mut self, location: Option<Location>) -> Self {
-        self.location = location;
-        self
-    }
-
-    /// Get the Auth messages associated with this UAS data.
-    pub fn auth(&self) -> &[Auth] {
-        &self.auth
-    }
-
-    /// Set the Auth messages associated with this UAS data.
-    pub fn with_auth(mut self, auth: Vec<Auth>) -> Self {
-        self.auth = auth;
-        self
-    }
-
-    /// Get the Self ID message associated with this UAS data, if available.
-    pub fn self_id(&self) -> Option<&SelfId> {
-        self.self_id.as_ref()
-    }
-    /// Set the Self ID message associated with this UAS data.
-    pub fn with_self_id(mut self, self_id: Option<SelfId>) -> Self {
-        self.self_id = self_id;
-        self
-    }
-
-    /// Get the System message associated with this UAS data, if available.
-    pub fn system(&self) -> Option<&System> {
-        self.system.as_ref()
-    }
-
-    /// Set the System message associated with this UAS data.
-    pub fn with_system(mut self, system: Option<System>) -> Self {
-        self.system = system;
-        self
-    }
-
-    /// Get the Operator ID message associated with this UAS data, if available.
-    pub fn operator_id(&self) -> Option<&OperatorId> {
-        self.operator_id.as_ref()
-    }
-
-    /// Set the Operator ID message associated with this UAS data.
-    pub fn with_operator_id(mut self, operator_id: Option<OperatorId>) -> Self {
-        self.operator_id = operator_id;
-        self
-    }
-
     /// Decode UAS data from a single Open Drone ID message or a message pack in a buffer.
     ///
     /// Consumes the bytes of the message from the buffer, which does not need to be contiguous.
@@ -1583,6 +1564,10 @@ impl UasData {
         }
     }
 
+    /// Encodes the messages as a message pack.
+    ///
+    /// Returns an error if there is no message, if there are more than `ODID_PACK_MAX_MESSAGES`
+    /// messages, or if a message cannot be encoded.
     pub fn encode_to_vec(&self) -> Result<Vec<u8>, Error> {
         let mut message_pack_data = std::mem::MaybeUninit::<sys::ODID_MessagePack_data>::uninit();
         unsafe { sys::odid_initMessagePackData(message_pack_data.as_mut_ptr()) };
@@ -1812,28 +1797,41 @@ mod tests {
         ));
     }
 
+    const MUNICH: Coordinates = Coordinates {
+        latitude: 48.137_154_3,
+        longitude: 11.575_382_1,
+    };
+
+    fn assert_coordinates_eq(actual: Option<Coordinates>, expected: Option<Coordinates>) {
+        match (actual, expected) {
+            (Some(actual), Some(expected)) => {
+                assert!((actual.latitude - expected.latitude).abs() < 1e-7);
+                assert!((actual.longitude - expected.longitude).abs() < 1e-7);
+            }
+            (actual, expected) => assert_eq!(actual, expected),
+        }
+    }
+
     #[test]
     fn operator_location_round_trips_with_type() {
         let position = OperatorPosition {
-            latitude: 48.137_154_3,
-            longitude: 11.575_382_1,
+            coordinates: Some(MUNICH),
             altitude_geodetic: Some(520.5),
         };
         for location in [
             OperatorLocation::Takeoff(position),
             OperatorLocation::LiveGnss(position),
-            OperatorLocation::Fixed(OperatorPosition {
-                altitude_geodetic: None,
-                ..position
-            }),
+            OperatorLocation::Fixed(OperatorPosition::default()),
         ] {
             let decoded = round_trip(&System::default().with_operator_location(location).unwrap())
                 .operator_location()
                 .unwrap();
 
             assert_eq!(decoded.location_type(), location.location_type());
-            assert!((decoded.position().latitude - position.latitude).abs() < 1e-7);
-            assert!((decoded.position().longitude - position.longitude).abs() < 1e-7);
+            assert_coordinates_eq(
+                decoded.position().coordinates,
+                location.position().coordinates,
+            );
             assert_eq!(
                 decoded.position().altitude_geodetic,
                 location.position().altitude_geodetic
@@ -1845,18 +1843,304 @@ mod tests {
     fn operator_location_out_of_range_is_rejected() {
         let result =
             System::default().with_operator_location(OperatorLocation::Fixed(OperatorPosition {
-                latitude: 91.0,
-                longitude: 0.0,
+                coordinates: Some(Coordinates {
+                    latitude: 91.0,
+                    longitude: 0.0,
+                }),
                 altitude_geodetic: None,
             }));
 
         assert!(matches!(
             result,
             Err(Error::InvalidValue {
-                field: "operator_latitude",
+                field: "latitude",
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn default_location_values_are_unknown() {
+        let location = Location::default();
+
+        assert_eq!(location.direction(), None);
+        assert_eq!(location.speed_horizontal(), None);
+        assert_eq!(location.speed_vertical(), None);
+        assert_eq!(location.coordinates(), None);
+        assert_eq!(location.altitude_barometric(), None);
+        assert_eq!(location.altitude_geodetic(), None);
+        assert_eq!(location.height().unwrap(), None);
+        assert_eq!(location.timestamp(), None);
+    }
+
+    #[test]
+    fn known_location_values_round_trip() {
+        let decoded = round_trip(
+            &Location::default()
+                .with_direction(271.0)
+                .unwrap()
+                .with_speed_horizontal(12.25)
+                .unwrap()
+                .with_speed_vertical(-3.5)
+                .unwrap()
+                .with_coordinates(MUNICH)
+                .unwrap()
+                .with_altitude_barometric(512.5)
+                .unwrap()
+                .with_altitude_geodetic(560.0)
+                .unwrap()
+                .with_timestamp(1234.5)
+                .unwrap(),
+        );
+
+        assert_eq!(decoded.direction(), Some(271.0));
+        assert_eq!(decoded.speed_horizontal(), Some(12.25));
+        assert_eq!(decoded.speed_vertical(), Some(-3.5));
+        assert_coordinates_eq(decoded.coordinates(), Some(MUNICH));
+        assert_eq!(decoded.altitude_barometric(), Some(512.5));
+        assert_eq!(decoded.altitude_geodetic(), Some(560.0));
+        assert_eq!(decoded.timestamp(), Some(1234.5));
+    }
+
+    #[test]
+    fn location_values_can_be_set_to_unknown() {
+        let decoded = round_trip(
+            &Location::default()
+                .with_direction(90.0)
+                .and_then(|l| l.with_direction(None))
+                .and_then(|l| l.with_speed_horizontal(1.0))
+                .and_then(|l| l.with_speed_horizontal(None))
+                .and_then(|l| l.with_speed_vertical(1.0))
+                .and_then(|l| l.with_speed_vertical(None))
+                .and_then(|l| l.with_coordinates(MUNICH))
+                .and_then(|l| l.with_coordinates(None))
+                .and_then(|l| l.with_altitude_barometric(1.0))
+                .and_then(|l| l.with_altitude_barometric(None))
+                .and_then(|l| l.with_altitude_geodetic(1.0))
+                .and_then(|l| l.with_altitude_geodetic(None))
+                .and_then(|l| l.with_height(Height::AboveGroundLevel(1.0)))
+                .and_then(|l| l.with_height(None))
+                .and_then(|l| l.with_timestamp(1.0))
+                .and_then(|l| l.with_timestamp(None))
+                .unwrap(),
+        );
+
+        assert_eq!(decoded, round_trip(&Location::default()));
+    }
+
+    #[test]
+    fn unknown_markers_are_rejected_as_known_values() {
+        assert!(matches!(
+            Location::default().with_coordinates(Coordinates {
+                latitude: 0.0,
+                longitude: 0.0
+            }),
+            Err(Error::InvalidValue {
+                field: "coordinates",
+                ..
+            })
+        ));
+        assert!(matches!(
+            Location::default().with_altitude_geodetic(MIN_ALTITUDE as f32),
+            Err(Error::InvalidValue {
+                field: "altitude_geodetic",
+                ..
+            })
+        ));
+        assert!(matches!(
+            System::default().with_area_floor(MIN_ALTITUDE as f32),
+            Err(Error::InvalidValue {
+                field: "area_floor",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn out_of_range_location_values_are_rejected() {
+        let location = Location::default();
+
+        assert!(location.clone().with_direction(361.0).is_err());
+        assert!(location.clone().with_direction(f32::NAN).is_err());
+        assert!(location.clone().with_speed_horizontal(255.0).is_err());
+        assert!(location.clone().with_speed_vertical(63.0).is_err());
+        assert!(location.clone().with_timestamp(3600.5).is_err());
+        assert!(
+            location
+                .with_coordinates(Coordinates {
+                    latitude: 0.0,
+                    longitude: 180.5
+                })
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn area_ceiling_and_floor_round_trip() {
+        let system = System::default()
+            .with_area_ceiling(150.0)
+            .unwrap()
+            .with_area_floor(None)
+            .unwrap();
+
+        let decoded = round_trip(&system);
+
+        assert_eq!(decoded.area_ceiling(), Some(150.0));
+        assert_eq!(decoded.area_floor(), None);
+        assert_eq!(System::default().area_ceiling(), None);
+    }
+
+    fn first_page(last_page_index: u8, length: u8) -> AuthPage {
+        let mut data = [0u8; AUTH_FIRST_PAGE_DATA_SIZE];
+        data[0] = 0x00;
+        data[1] = 0xff;
+        data[AUTH_FIRST_PAGE_DATA_SIZE - 1] = 0x80;
+        AuthPage::First {
+            last_page_index,
+            length,
+            timestamp: 12345,
+            data,
+        }
+    }
+
+    #[test]
+    fn auth_pages_round_trip() {
+        let mut data = [0xa5u8; AUTH_NEXT_PAGE_DATA_SIZE];
+        data[0] = 0x00;
+        for page in [
+            first_page(2, 63),
+            AuthPage::Next { index: 1, data },
+            AuthPage::Next {
+                index: AUTH_MAX_PAGES as u8 - 1,
+                data,
+            },
+        ] {
+            let auth = Auth::default()
+                .with_auth_type(AuthenticationType::MessageSetSignature)
+                .with_page(page)
+                .unwrap();
+
+            let decoded = round_trip(&auth);
+
+            assert_eq!(
+                decoded.auth_type().unwrap(),
+                AuthenticationType::MessageSetSignature
+            );
+            assert_eq!(decoded.page(), page);
+            assert_eq!(decoded.page().index(), page.index());
+        }
+    }
+
+    #[test]
+    fn auth_length_must_fit_in_the_pages() {
+        let capacity = (AUTH_FIRST_PAGE_DATA_SIZE + AUTH_NEXT_PAGE_DATA_SIZE) as u8;
+
+        assert!(Auth::default().with_page(first_page(1, capacity)).is_ok());
+        assert!(matches!(
+            Auth::default().with_page(first_page(1, capacity + 1)),
+            Err(Error::InvalidValue {
+                field: "length",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn auth_page_indices_are_checked() {
+        let data = [0u8; AUTH_NEXT_PAGE_DATA_SIZE];
+        for index in [0, AUTH_MAX_PAGES as u8] {
+            assert!(matches!(
+                Auth::default().with_page(AuthPage::Next { index, data }),
+                Err(Error::InvalidValue { field: "index", .. })
+            ));
+        }
+        assert!(matches!(
+            Auth::default().with_page(first_page(AUTH_MAX_PAGES as u8, 0)),
+            Err(Error::InvalidValue {
+                field: "last_page_index",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn later_auth_page_clears_first_page_fields() {
+        let data = [0x11u8; AUTH_NEXT_PAGE_DATA_SIZE];
+        let auth = Auth::default()
+            .with_page(first_page(3, 40))
+            .unwrap()
+            .with_page(AuthPage::Next { index: 2, data })
+            .unwrap();
+
+        let expected = Auth::default()
+            .with_page(AuthPage::Next { index: 2, data })
+            .unwrap();
+        assert_eq!(auth, expected);
+    }
+
+    #[cfg(feature = "chrono")]
+    fn utc(time: &str) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339(time).unwrap().to_utc()
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn location_timestamp_is_nearest_to_the_reference() {
+        for (seconds, reference, expected) in [
+            (600.0, "2026-11-10T15:20:00Z", "2026-11-10T15:10:00Z"),
+            // Sent just before the hour, received just after it.
+            (3598.0, "2026-11-10T15:00:10Z", "2026-11-10T14:59:58Z"),
+            // Clock of the UA slightly ahead of the receiver.
+            (0.5, "2026-11-10T14:59:59Z", "2026-11-10T15:00:00.500Z"),
+            (1800.0, "2026-11-10T15:00:00Z", "2026-11-10T15:30:00Z"),
+        ] {
+            let location = Location::default().with_timestamp(seconds).unwrap();
+
+            assert_eq!(
+                location.chrono_timestamp(utc(reference)),
+                Some(utc(expected))
+            );
+        }
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn location_chrono_timestamp_round_trips() {
+        let time = utc("2026-11-10T15:42:17.300Z");
+        let decoded = round_trip(&Location::default().with_chrono_timestamp(time));
+
+        assert_eq!(decoded.timestamp(), Some(2537.3));
+        assert_eq!(
+            decoded.chrono_timestamp(utc("2026-11-10T15:42:18Z")),
+            Some(time)
+        );
+        assert_eq!(Location::default().chrono_timestamp(time), None);
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn odid_epoch_conversions() {
+        let time = utc("2026-11-10T15:00:00Z");
+        let seconds = to_odid_epoch(time).unwrap();
+
+        assert_eq!(from_odid_epoch(seconds), time);
+        assert_eq!(from_odid_epoch(0).to_rfc3339(), "2019-01-01T00:00:00+00:00");
+        assert!(to_odid_epoch(utc("2018-12-31T23:59:59Z")).is_err());
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn auth_chrono_timestamp_is_only_on_the_first_page() {
+        let first = Auth::default().with_page(first_page(0, 1)).unwrap();
+        let next = Auth::default()
+            .with_page(AuthPage::Next {
+                index: 1,
+                data: [0; AUTH_NEXT_PAGE_DATA_SIZE],
+            })
+            .unwrap();
+
+        assert_eq!(first.chrono_timestamp(), Some(from_odid_epoch(12345)));
+        assert_eq!(next.chrono_timestamp(), None);
     }
 
     #[test]
@@ -1880,15 +2164,15 @@ mod tests {
     const MESSAGE_SIZE: usize = sys::ODID_MESSAGE_SIZE as usize;
 
     fn uas_data() -> UasData {
-        UasData::default()
-            .with_basic_id(vec![basic_id(UasId::UtmAssignedUuid(Uuid::from_bytes(
-                UUID,
-            )))])
-            .with_location(Some(
+        UasData {
+            basic_id: vec![basic_id(UasId::UtmAssignedUuid(Uuid::from_bytes(UUID)))],
+            location: Some(
                 Location::default()
                     .with_height(Height::AboveTakeoff(42.0))
                     .unwrap(),
-            ))
+            ),
+            ..UasData::default()
+        }
     }
 
     fn assert_buffer_too_small(result: Result<UasData, Error>, remaining: usize, required: usize) {
@@ -1984,7 +2268,7 @@ mod tests {
         let mut buf = &encoded[..];
         let decoded = UasData::decode(&mut buf).unwrap();
 
-        assert_eq!(decoded.basic_id(), [message]);
+        assert_eq!(decoded.basic_id, [message]);
         assert_eq!(buf, [0xaa]);
     }
 

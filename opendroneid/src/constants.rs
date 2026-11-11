@@ -1,3 +1,5 @@
+//! Limits and sizes of the fields of Open Drone ID messages.
+
 use opendroneid_sys as sys;
 
 /// Maximum altitude in meters that can be encoded in Open Drone ID messages
@@ -12,7 +14,8 @@ pub use sys::MAX_LON as MAX_LONGITUDE;
 pub use sys::MAX_SPEED_H as MAX_SPEED_HORIZONTAL;
 /// Maximum vertical speed in m/s that can be encoded in Open Drone ID messages
 pub use sys::MAX_SPEED_V as MAX_SPEED_VERTICAL;
-/// Minimum altitude in meters that can be encoded in Open Drone ID messages
+/// Minimum altitude in meters that can be encoded in Open Drone ID messages, which also marks an
+/// unknown altitude
 pub use sys::MIN_ALT as MIN_ALTITUDE;
 /// Minimum heading direction in degrees that can be encoded in Open Drone ID messages
 pub use sys::MIN_DIR as MIN_DIRECTION;
@@ -30,3 +33,9 @@ pub const UAS_ID_SIZE: usize = sys::ODID_ID_SIZE as usize;
 pub const UUID_SIZE: usize = 16;
 /// Size in bytes of the [`SpecificSessionId::id`](crate::SpecificSessionId::id)
 pub const SPECIFIC_SESSION_ID_SIZE: usize = UAS_ID_SIZE - 1;
+/// Maximum number of pages of an [`Auth`](crate::Auth) message
+pub const AUTH_MAX_PAGES: usize = sys::ODID_AUTH_MAX_PAGES as usize;
+/// Size in bytes of the authentication data on the first [`AuthPage`](crate::AuthPage)
+pub const AUTH_FIRST_PAGE_DATA_SIZE: usize = sys::ODID_AUTH_PAGE_ZERO_DATA_SIZE as usize;
+/// Size in bytes of the authentication data on each later [`AuthPage`](crate::AuthPage)
+pub const AUTH_NEXT_PAGE_DATA_SIZE: usize = sys::ODID_AUTH_PAGE_NONZERO_DATA_SIZE as usize;
