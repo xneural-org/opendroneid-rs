@@ -12,6 +12,8 @@ use crate::{
     message::{Message, MessageInternal},
     values::{checked_altitude, none_if},
 };
+#[cfg(feature = "chrono")]
+use crate::{from_odid_epoch, to_odid_epoch};
 
 /// Type of the [`System::operator_location`]. Accessible through [`OperatorLocation::location_type`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
@@ -268,17 +270,35 @@ impl System {
 
     /// Returns the timestamp in seconds since 2019-01-01 00:00:00 UTC.
     ///
-    /// Convert it with `from_odid_epoch` (feature `chrono`).
+    /// With the `chrono` feature, `System::chrono_timestamp` returns it as a time.
     pub fn timestamp(&self) -> u32 {
         self.data.Timestamp
     }
 
     /// Sets the timestamp in seconds since 2019-01-01 00:00:00 UTC.
     ///
-    /// Convert a time with `to_odid_epoch` (feature `chrono`).
+    /// With the `chrono` feature, `System::with_chrono_timestamp` sets it from a time.
     pub fn with_timestamp(mut self, timestamp: u32) -> Self {
         self.data.Timestamp = timestamp;
         self
+    }
+
+    /// Returns the timestamp as a `chrono::DateTime<Utc>`.
+    #[cfg(feature = "chrono")]
+    pub fn chrono_timestamp(&self) -> chrono::DateTime<chrono::Utc> {
+        from_odid_epoch(self.data.Timestamp)
+    }
+
+    /// Sets the timestamp to `time`, rounded down to whole seconds.
+    ///
+    /// Returns an error for a time before 2019 or after the range of the timestamp.
+    #[cfg(feature = "chrono")]
+    pub fn with_chrono_timestamp(
+        mut self,
+        time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Self, Error> {
+        self.data.Timestamp = to_odid_epoch(time)?;
+        Ok(self)
     }
 }
 
@@ -378,5 +398,33 @@ mod tests {
 
         assert_eq!(message.data.CategoryEU, Category::Undeclared as u32);
         assert_eq!(message.data.ClassEU, ClassEu::Undeclared as u32);
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn system_chrono_timestamp_round_trips() {
+        let system = System::default()
+            .with_chrono_timestamp(utc("2026-11-10T15:42:17.9Z"))
+            .unwrap();
+
+        assert_eq!(system.timestamp(), 248_024_537);
+        assert_eq!(
+            round_trip(&system).chrono_timestamp(),
+            utc("2026-11-10T15:42:17Z")
+        );
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn system_chrono_timestamp_before_2019_is_rejected() {
+        let result = System::default().with_chrono_timestamp(utc("2018-12-31T23:59:59Z"));
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidValue {
+                field: "timestamp",
+                ..
+            })
+        ));
     }
 }

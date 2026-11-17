@@ -5,14 +5,14 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use opendroneid_sys as sys;
 
-#[cfg(feature = "chrono")]
-use crate::from_odid_epoch;
 use crate::{
     constants::{AUTH_FIRST_PAGE_DATA_SIZE, AUTH_MAX_PAGES, AUTH_NEXT_PAGE_DATA_SIZE},
     error::Error,
     macros,
     message::{Message, MessageInternal},
 };
+#[cfg(feature = "chrono")]
+use crate::{from_odid_epoch, to_odid_epoch};
 
 /// Type of authentication used in the [`Auth`] message.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
@@ -203,6 +203,25 @@ impl Auth {
             AuthPage::Next { .. } => None,
         }
     }
+
+    /// Sets the timestamp of the first page to `time`, rounded down to whole seconds.
+    ///
+    /// Returns an error for a later page, which has no timestamp, and for a time before 2019 or
+    /// after the range of the timestamp.
+    #[cfg(feature = "chrono")]
+    pub fn with_chrono_timestamp(
+        mut self,
+        time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Self, Error> {
+        if self.data.DataPage != 0 {
+            return Err(Error::InvalidValue {
+                field: "timestamp",
+                value: format!("page {} has no timestamp", self.data.DataPage),
+            });
+        }
+        self.data.Timestamp = to_odid_epoch(time)?;
+        Ok(self)
+    }
 }
 
 #[cfg(test)]
@@ -311,5 +330,43 @@ mod tests {
 
         assert_eq!(first.chrono_timestamp(), Some(from_odid_epoch(12345)));
         assert_eq!(next.chrono_timestamp(), None);
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn auth_chrono_timestamp_is_set_on_the_first_page() {
+        let time = utc("2026-11-10T15:42:17Z");
+        let auth = Auth::default()
+            .with_page(first_page(0, 1))
+            .and_then(|auth| auth.with_chrono_timestamp(time))
+            .unwrap();
+
+        assert_eq!(round_trip(&auth).chrono_timestamp(), Some(time));
+        assert!(matches!(auth.page(), AuthPage::First { length: 1, .. }));
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn auth_chrono_timestamp_is_rejected_on_a_later_page_and_before_2019() {
+        let next = Auth::default()
+            .with_page(AuthPage::Next {
+                index: 1,
+                data: [0; AUTH_NEXT_PAGE_DATA_SIZE],
+            })
+            .unwrap();
+        let first = Auth::default().with_page(first_page(0, 1)).unwrap();
+
+        for result in [
+            next.with_chrono_timestamp(utc("2026-11-10T15:42:17Z")),
+            first.with_chrono_timestamp(utc("2018-12-31T23:59:59Z")),
+        ] {
+            assert!(matches!(
+                result,
+                Err(Error::InvalidValue {
+                    field: "timestamp",
+                    ..
+                })
+            ));
+        }
     }
 }

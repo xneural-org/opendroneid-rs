@@ -480,10 +480,19 @@ impl Location {
         chrono::DateTime::from_timestamp_millis(time_ms)
     }
 
-    /// Sets the timestamp to the seconds of `time` since the start of its hour.
+    /// Sets the timestamp to the seconds of `time` since the start of its hour, `None` if it is
+    /// unknown.
+    ///
+    /// The message holds tenths of a second, so the time is rounded when it is encoded.
     #[cfg(feature = "chrono")]
-    pub fn with_chrono_timestamp(mut self, time: chrono::DateTime<chrono::Utc>) -> Self {
-        self.data.TimeStamp = time.timestamp_millis().rem_euclid(HOUR_MS) as f32 / 1000.0;
+    pub fn with_chrono_timestamp(
+        mut self,
+        time: impl Into<Option<chrono::DateTime<chrono::Utc>>>,
+    ) -> Self {
+        self.data.TimeStamp = match time.into() {
+            Some(time) => time.timestamp_millis().rem_euclid(HOUR_MS) as f32 / 1000.0,
+            None => sys::INV_TIMESTAMP as f32,
+        };
         self
     }
 }
@@ -676,5 +685,12 @@ mod tests {
             Some(time)
         );
         assert_eq!(Location::default().chrono_timestamp(time), None);
+        assert_eq!(
+            Location::default()
+                .with_chrono_timestamp(time)
+                .with_chrono_timestamp(None)
+                .timestamp(),
+            None
+        );
     }
 }
